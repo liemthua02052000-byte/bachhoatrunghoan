@@ -2,6 +2,7 @@ import { useAuth, AuthProvider } from '@/lib/auth';
 import { Dashboard } from '@/components/Dashboard';
 import { AdminAuth } from '@/components/AdminAuth';
 import { AdminDashboard } from '@/components/AdminDashboard';
+import { UserAuth } from '@/components/UserAuth';
 import { Loader2, ShieldCheck } from 'lucide-react';
 
 function AppContent() {
@@ -23,17 +24,19 @@ function AppContent() {
     if (!user) {
       return <AdminAuth />;
     }
-    if (user && profile && !profile.is_approved) {
+    if (user && profile && profile.is_approved && profile.is_admin) {
+      return <AdminDashboard />;
+    }
+    if (user && profile && profile.is_approved && !profile.is_admin) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 px-4">
           <div className="max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20">
-              <ShieldCheck className="h-8 w-8 text-amber-400" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/20">
+              <ShieldCheck className="h-8 w-8 text-blue-400" />
             </div>
-            <h1 className="text-lg font-bold text-white">Tài khoản chờ duyệt</h1>
+            <h1 className="text-lg font-bold text-white">Không có quyền quản trị</h1>
             <p className="mt-2 text-sm text-blue-200 leading-relaxed">
-              Tài khoản của bạn đã đăng ký thành công nhưng đang chờ quản trị viên duyệt.
-              Vui lòng liên hệ admin để được cấp quyền truy cập.
+              Tài khoản của bạn không có quyền truy cập trang quản trị.
             </p>
             <button
               onClick={() => window.location.hash = ''}
@@ -45,9 +48,6 @@ function AppContent() {
         </div>
       );
     }
-    if (user && profile && profile.is_approved) {
-      return <AdminDashboard />;
-    }
     // User exists but profile not loaded yet — show loading
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800">
@@ -57,6 +57,11 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  // Main route — require login
+  if (!user) {
+    return <UserAuth />;
   }
 
   return <Dashboard />;

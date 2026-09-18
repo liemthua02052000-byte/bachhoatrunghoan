@@ -45,6 +45,21 @@ interface PendingUser {
   is_admin: boolean;
   is_approved: boolean;
   created_at: string;
+  scan_count?: number;
+}
+
+interface UserScanRow {
+  id: string;
+  post_url: string;
+  post_content: string | null;
+  post_date: string | null;
+  total_reactions: number;
+  total_comments: number;
+  total_shares: number;
+  risk_score: number;
+  risk_level: string;
+  engagement_ratio: number;
+  created_at: string;
 }
 
 type AdminTab = 'overview' | 'history' | 'monitor' | 'users';
@@ -62,6 +77,9 @@ export function AdminDashboard() {
   const [detailResult, setDetailResult] = useState<ScanResultType | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailInput, setDetailInput] = useState<{ totalReactions: number; totalComments: number; totalShares: number; reactionBreakdown: Record<string, number>; postContent?: string; postDate?: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<PendingUser | null>(null);
+  const [userScans, setUserScans] = useState<UserScanRow[]>([]);
+  const [loadingUserScans, setLoadingUserScans] = useState(false);
   const realtimeChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load scan history
@@ -104,15 +122,39 @@ export function AdminDashboard() {
     };
   }, []);
 
-  // Load pending users
+  // Load all users with scan counts
   async function loadUsers() {
     setLoadingUsers(true);
-    const { data } = await supabase
-      .from('admin_profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setPendingUsers((data ?? []) as PendingUser[]);
+    const { data, error } = await supabase.rpc('get_all_users_with_scan_counts');
+    if (!error && data) {
+      setPendingUsers(data as PendingUser[]);
+    } else {
+      // Fallback: direct query
+      const { data: fallback } = await supabase
+        .from('admin_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      setPendingUsers((fallback ?? []) as PendingUser[]);
+    }
     setLoadingUsers(false);
+  }
+
+  async function loadUserScans(userId: string) {
+    setLoadingUserScans(true);
+    const { data } = await supabase
+      .from('scan_reports')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    setUserScans((data ?? []) as UserScanRow[]);
+    setLoadingUserScans(false);
+  }
+
+  function handleViewUser(user: PendingUser) {
+    setSelectedUser(user);
+    setUserScans([]);
+    loadUserScans(user.id);
   }
 
   useEffect(() => {
@@ -453,8 +495,8 @@ export function AdminDashboard() {
         {tab === 'users' && (
           <div className="space-y-4">
             <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <h3 className="mb-1 text-sm font-semibold text-gray-900">Quản lý tài khoản</h3>
-              <p className="mb-4 text-xs text-gray-500">Duyệt hoặc từ chối tài khoản đăng ký mới. Tài khoản đầu tiên đã tự động là admin.</p>
+              <h3 className="mb-1 text-sm font-semibold text-gray-900">Danh sách tài khoản người dùng</h3>
+              <p className="mb-4 text-xs text-gray-500">Tất cả tài khoản đã đăng ký. Bấm vào tài khoản để xem lịch sử kiểm tra chi tiết.</p>
 
               {loadingUsers ? (
                 <div className="flex items-center justify-center py-8">
@@ -463,47 +505,67 @@ export function AdminDashboard() {
               ) : pendingUsers.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-400">Chưa có tài khoản nào.</p>
               ) : (
-                <div className="space-y-2">
-                  {pendingUsers.map((u) => (
-                    <div
-                      key={u.id}
-                      className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-4 py-3"
-                    >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                        {u.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{u.email}</p>
-                        <p className="text-xs text-gray-400">Đăng ký: {formatTime(u.created_at)}</p>
-                      </div>
-                      {u.is_admin && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
-                          <ShieldCheck className="h-3 w-3" /> Admin
-                        </span>
-                      )}
-                      {u.is_approved ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                          <CheckCircle2 className="h-3 w-3" /> Đã duyệt
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                          <Clock className="h-3 w-3" /> Chờ duyệt
-                        </span>
-                      )}
-                      {!u.is_admin && (
-                        <button
-                          onClick={() => u.is_approved ? rejectUser(u.id) : approveUser(u.id)}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                            u.is_approved
-                              ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                          }`}
-                        >
-                          {u.is_approved ? 'Thu hồi' : 'Duyệt'}
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs text-gray-500">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium">Email</th>
+                        <th className="px-4 py-3 text-center font-medium">Vai trò</th>
+                        <th className="px-4 py-3 text-center font-medium">Trạng thái</th>
+                        <th className="px-4 py-3 text-center font-medium">Lượt kiểm tra</th>
+                        <th className="px-4 py-3 text-left font-medium">Ngày đăng ký</th>
+                        <th className="px-4 py-3 text-center font-medium">Chi tiết</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {pendingUsers.map((u) => (
+                        <tr key={u.id} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                                {u.email.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="font-medium text-gray-900">{u.email}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {u.is_admin ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+                                <ShieldCheck className="h-3 w-3" /> Admin
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-500">Người dùng</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {u.is_approved ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                                <CheckCircle2 className="h-3 w-3" /> Hoạt động
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                                <Clock className="h-3 w-3" /> Chờ duyệt
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="font-bold text-gray-900">{u.scan_count ?? 0}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                            {new Date(u.created_at).toLocaleDateString('vi-VN')}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => handleViewUser(u)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Xem
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -544,6 +606,86 @@ export function AdminDashboard() {
             ) : (
               <div className="py-8 text-center text-sm text-gray-400">
                 Không thể tải chi tiết. Lượt kiểm tra này có thể không còn dữ liệu.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* User detail modal */}
+      {selectedUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedUser(null)}
+        >
+          <div
+            className="my-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">{selectedUser.email}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Đăng ký: {new Date(selectedUser.created_at).toLocaleString('vi-VN')}
+                  {' · '}{selectedUser.scan_count ?? 0} lượt kiểm tra
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {loadingUserScans ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                <span className="ml-2 text-sm text-gray-500">Đang tải lịch sử...</span>
+              </div>
+            ) : userScans.length === 0 ? (
+              <div className="py-12 text-center">
+                <Clock className="mx-auto mb-3 h-8 w-8 text-gray-300" />
+                <p className="text-sm text-gray-400">Người dùng này chưa có lượt kiểm tra nào.</p>
+              </div>
+            ) : (
+              <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+                {userScans.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-4 py-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {riskBadge(s.risk_level)}
+                        <span className="text-xs text-gray-400">
+                          {new Date(s.created_at).toLocaleDateString('vi-VN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="truncate text-sm text-gray-700">
+                        {s.post_content || 'Không có nội dung'}
+                      </p>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                        <span>{s.total_reactions.toLocaleString('vi-VN')} react</span>
+                        <span>{s.total_comments.toLocaleString('vi-VN')} cmt</span>
+                        <span>{s.total_shares.toLocaleString('vi-VN')} share</span>
+                      </div>
+                    </div>
+                    <a
+                      href={s.post_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </a>
+                  </div>
+                ))}
               </div>
             )}
           </div>

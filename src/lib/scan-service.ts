@@ -6,6 +6,9 @@ export async function saveScanReport(
   input: ScanInput,
   result: ScanResult
 ): Promise<string | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id ?? null;
+
   const { data, error } = await supabase
     .from('scan_reports')
     .insert({
@@ -20,6 +23,7 @@ export async function saveScanReport(
       risk_level: result.riskLevel,
       detected_signals: result.detectedSignals,
       engagement_ratio: result.engagementRatio,
+      user_id: userId,
     })
     .select('id')
     .single();
@@ -45,13 +49,16 @@ export async function saveScanReport(
   return scanId;
 }
 
-export async function getScanHistory(limit = 20) {
-  const { data, error } = await supabase
+export async function getScanHistory(limit = 20, userId?: string | null) {
+  let query = supabase
     .from('scan_reports')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
-
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+  const { data, error } = await query;
   if (error) return [];
   return data;
 }

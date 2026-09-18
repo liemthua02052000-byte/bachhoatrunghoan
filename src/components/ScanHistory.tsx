@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ScanReport } from '@/lib/types';
 import { getScanHistory, deleteScanReport } from '@/lib/scan-service';
+import { useAuth } from '@/lib/auth';
 import { RiskBadge, riskConfig } from './RiskBadge';
 import { History, Trash2, ExternalLink, ChevronRight } from 'lucide-react';
 
@@ -10,13 +11,14 @@ interface Props {
 }
 
 export function ScanHistory({ refreshKey, onSelect }: Props) {
+  const { user } = useAuth();
   const [history, setHistory] = useState<ScanReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getScanHistory(30).then((data) => {
+    getScanHistory(30, user?.id ?? null).then((data) => {
       if (!cancelled) {
         setHistory(data as ScanReport[]);
         setLoading(false);
@@ -25,7 +27,7 @@ export function ScanHistory({ refreshKey, onSelect }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, user]);
 
   async function handleDelete(id: string) {
     await deleteScanReport(id);

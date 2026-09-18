@@ -5,6 +5,7 @@ import { ScanHistory } from './ScanHistory';
 import { ScanResult } from './ScanResult';
 import { RiskBadge } from './RiskBadge';
 import { getScanWithInteractions } from '@/lib/scan-service';
+import { useAuth } from '@/lib/auth';
 import {
   ShieldCheck,
   ScanLine,
@@ -12,11 +13,13 @@ import {
   HelpCircle,
   X,
   Loader2,
+  LogOut,
 } from 'lucide-react';
 
 type Tab = 'scan' | 'history' | 'guide';
 
 export function Dashboard() {
+  const { user, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>('scan');
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedReport, setSelectedReport] = useState<ScanReport | null>(null);
@@ -77,12 +80,21 @@ export function Dashboard() {
           >
             Chính sách Facebook
           </a>
-          <a
-            href="#admin"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <ShieldCheck className="h-3.5 w-3.5" /> Quản trị
-          </a>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs text-gray-500 sm:block">{user?.email}</span>
+            <button
+              onClick={() => signOut()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Đăng xuất
+            </button>
+            <a
+              href="#admin"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Quản trị
+            </a>
+          </div>
         </div>
       </header>
 
