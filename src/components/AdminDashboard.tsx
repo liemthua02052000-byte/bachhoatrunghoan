@@ -18,11 +18,13 @@ import {
   Search,
   Eye,
   X,
+  ScanLine,
 } from 'lucide-react';
 import type { ScanResult as ScanResultType } from '@/lib/types';
 import { ScanResult } from './ScanResult';
 import { getScanWithInteractions } from '@/lib/scan-service';
 import { PostMonitoring } from './PostMonitoring';
+import { ScanForm } from './ScanForm';
 
 interface ScanRow {
   id: string;
@@ -62,7 +64,7 @@ interface UserScanRow {
   created_at: string;
 }
 
-type AdminTab = 'overview' | 'history' | 'monitor' | 'users';
+type AdminTab = 'overview' | 'scan' | 'history' | 'monitor' | 'users';
 
 export function AdminDashboard() {
   const { profile, signOut } = useAuth();
@@ -80,6 +82,7 @@ export function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<PendingUser | null>(null);
   const [userScans, setUserScans] = useState<UserScanRow[]>([]);
   const [loadingUserScans, setLoadingUserScans] = useState(false);
+  const [scanRefreshKey, setScanRefreshKey] = useState(0);
   const realtimeChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load scan history
@@ -247,6 +250,7 @@ export function AdminDashboard() {
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Tổng quan', icon: <Activity className="h-4 w-4" /> },
+    { id: 'scan', label: 'Kiểm tra bài viết', icon: <ScanLine className="h-4 w-4" /> },
     { id: 'history', label: 'Lịch sử kiểm tra', icon: <Clock className="h-4 w-4" /> },
     { id: 'monitor', label: 'Theo dõi biến động', icon: <TrendingUp className="h-4 w-4" /> },
     { id: 'users', label: 'Tài khoản', icon: <Users className="h-4 w-4" /> },
@@ -486,6 +490,11 @@ export function AdminDashboard() {
             </div>
             <p className="text-xs text-gray-400">Hiển thị {filteredScans.length} / {totalScans} lượt kiểm tra</p>
           </div>
+        )}
+
+        {/* Scan tab */}
+        {tab === 'scan' && (
+          <ScanForm onSaved={() => setScanRefreshKey((k) => k + 1)} />
         )}
 
         {/* Monitor tab */}
