@@ -6,6 +6,7 @@ import type {
   InteractionEntry,
   FlaggedAccount,
   FlagReason,
+  ThreatCategory,
 } from './types';
 
 function classifyRisk(score: number): RiskLevel {
@@ -23,7 +24,6 @@ const genericComments = [
   'cam on admin', 'thanks', 'thank you', 'ok ban', 'good share',
 ];
 
-// Common bot-name patterns: lots of random digits, "User" + numbers, Vietnamese keyboard spam
 const botNamePatterns = [
   /^user\d+/i,
   /^user\s*\d+/i,
@@ -33,12 +33,53 @@ const botNamePatterns = [
   /^(guest|visitor|unknown)/i,
 ];
 
-const spamPatterns = [
+// Spam / scam / hack patterns in comments
+const scamPatterns = [
   /\b(?:vay|vonn|vayvon|mcc|chuyenkhoan|nhactien|kiemtien|casino|daigia)\b/i,
-  /\b(?:bit\.ly|tinyurl|t\.co|shortlink)\b/i,
+  /\b(?:bit\.ly|tinyurl|t\.co|shortlink|t\.me|zalo\.me|goo\.gl)\b/i,
+  /\b(?:hack|crack|keygen|patch|serial|activate|license|free\s?(?:full|pro|vip|premium))\b/i,
+  /\b(?:tien\s?ao|nap\s?the|rut\s?tien|nhan\s?tien|free\s?fire|pubg|hack\s?(?:nick|acc|account|tien))\b/i,
+  /\b(?:sub\s?(?:for\s?(?:sub|follow)|doi\s?(?:sub|follow))|sub\s?doi\s?sub|follow\s?doi\s?follow)\b/i,
   /(.)\1{4,}/, // same char repeated 5+ times
   /^[A-Z\s]{10,}$/, // all caps long string
 ];
+
+// Scripted/bot patterns: repeated structure, copy-paste templates
+const scriptedPatterns = [
+  /^(.+?)\1{2,}$/, // repeated phrase 3+ times: "hay hay hay"
+  /^\d+\.\s.+(\n\d+\.\s.+)*/m, // numbered list in short comment
+  /\[.+\]|{.+}|<.+>/, // template bracket notation
+];
+
+const linkPatterns = [
+  /https?:\/\/(?!www\.facebook\.com|fb\.com|m\.facebook\.com)/i, // non-Facebook links
+  /\b(?:bit\.ly|tinyurl|t\.co|shortlink|goo\.gl|t\.me|zalo\.me|telegram)\b/i,
+];
+
+function classifyThreat(reasons: { type: FlagReason }[]): ThreatCategory {
+  const reasonTypes = new Set(reasons.map((r) => r.type));
+
+  // HACK: scam links, hack/crack keywords, scripted template patterns
+  if (
+    reasonTypes.has('link_spam') ||
+    reasonTypes.has('scripted_pattern') ||
+    reasonTypes.has('spam_pattern')
+  ) {
+    return 'hack';
+  }
+
+  // TOOL: bot names, duplicate names, generic auto-comments
+  if (
+    reasonTypes.has('bot_name') ||
+    reasonTypes.has('duplicate_name') ||
+    reasonTypes.has('repeated_content')
+  ) {
+    return 'tool';
+  }
+
+  // BUFF: empty profiles, new accounts, no photo — mass-created engagement accounts
+  return 'buff';
+}
 
 function flagInteractions(interactions: InteractionEntry[]): {
   flagged: FlaggedAccount[];
@@ -50,11 +91,11 @@ function flagInteractions(interactions: InteractionEntry[]): {
 
   const flagged: FlaggedAccount[] = [];
   const namesSeen = new Map<string, number[]>();
+  const contentSeen = new Map<string, number[]>();
 
   interactions.forEach((it, idx) => {
     const reasons: { type: FlagReason; label: string }[] = [];
 
-    // Empty profile
     if (it.isEmptyProfile) {
       reasons.push({
         type: 'empty_profile',
@@ -62,7 +103,6 @@ function flagInteractions(interactions: InteractionEntry[]): {
       });
     }
 
-    // New account
     if (it.isNewAccount) {
       reasons.push({
         type: 'new_account',
@@ -70,7 +110,6 @@ function flagInteractions(interactions: InteractionEntry[]): {
       });
     }
 
-    // No profile photo
     if (!it.hasProfilePhoto) {
       reasons.push({
         type: 'no_photo',
@@ -78,28 +117,48 @@ function flagInteractions(interactions: InteractionEntry[]): {
       });
     }
 
-    // Generic / spam comment
     if (it.content && it.content.trim().length > 0) {
       const trimmed = it.content.trim().toLowerCase();
+      const displayContent = it.content.trim();
+
       if (genericComments.includes(trimmed) || trimmed.length < 3) {
         reasons.push({
           type: 'generic_comment',
-          label: `Comment ngắn/generic ("${it.content.trim()}") — dấu hiệu comment tự động`,
+          label: `Comment ngắn/generic ("${displayContent}") — dấu hiệu comment tự động`,
         });
       }
 
-      for (const pattern of spamPatterns) {
+      for (const pattern of scamPatterns) {
         if (pattern.test(it.content)) {
           reasons.push({
             type: 'spam_pattern',
-            label: `Comment có pattern spam/quảng cáo — nội dung: "${it.content.trim().slice(0, 60)}"`,
+            label: `Comment có nội dung scam/hack/quảng cáo — nội dung: "${displayContent.slice(0, 60)}"`,
+          });
+          break;
+        }
+      }
+
+      for (const pattern of linkPatterns) {
+        if (pattern.test(it.content)) {
+          reasons.push({
+            type: 'link_spam',
+            label: `Comment chứa link ngoài/spam — nội dung: "${displayContent.slice(0, 60)}"`,
+          });
+          break;
+        }
+      }
+
+      for (const pattern of scriptedPatterns) {
+        if (pattern.test(it.content)) {
+          reasons.push({
+            type: 'scripted_pattern',
+            label: `Comment có cấu trúc template/lặp lại — dấu hiệu script tự động`,
           });
           break;
         }
       }
     }
 
-    // Bot-like name
     for (const pattern of botNamePatterns) {
       if (pattern.test(it.profileName)) {
         reasons.push({
@@ -110,12 +169,20 @@ function flagInteractions(interactions: InteractionEntry[]): {
       }
     }
 
-    // Track name duplicates
+    // Track duplicates
     const nameKey = it.profileName.trim().toLowerCase();
     if (nameKey) {
       const indices = namesSeen.get(nameKey) ?? [];
       indices.push(idx);
       namesSeen.set(nameKey, indices);
+    }
+
+    // Track content duplicates
+    const contentKey = it.content?.trim().toLowerCase() ?? '';
+    if (contentKey && contentKey.length > 0) {
+      const indices = contentSeen.get(contentKey) ?? [];
+      indices.push(idx);
+      contentSeen.set(contentKey, indices);
     }
 
     // Determine confidence
@@ -132,21 +199,23 @@ function flagInteractions(interactions: InteractionEntry[]): {
         reasons,
         content: it.content,
         confidence,
+        threatCategory: classifyThreat(reasons),
       });
     }
   });
 
-  // Mark duplicates as a reason (second+ occurrence)
-  for (const [name, indices] of namesSeen) {
+  // Mark duplicate names
+  for (const [, indices] of namesSeen) {
     if (indices.length > 1) {
       for (let i = 1; i < indices.length; i++) {
         const existing = flagged.find((f) => f.index === indices[i]);
         if (existing) {
           existing.reasons.push({
             type: 'duplicate_name',
-            label: `Tên "${it_profileName(interactions[indices[i]])}" xuất hiện ${indices.length} lần — tool spam dùng cùng tên`,
+            label: `Tên "${interactions[indices[i]].profileName}" xuất hiện ${indices.length} lần — tool spam dùng cùng tên`,
           });
           if (existing.confidence === 'low') existing.confidence = 'medium';
+          existing.threatCategory = classifyThreat(existing.reasons);
         } else {
           flagged.push({
             index: indices[i],
@@ -159,6 +228,38 @@ function flagInteractions(interactions: InteractionEntry[]): {
             }],
             content: interactions[indices[i]].content,
             confidence: 'medium',
+            threatCategory: 'tool',
+          });
+        }
+      }
+    }
+  }
+
+  // Mark repeated content
+  for (const [, indices] of contentSeen) {
+    if (indices.length >= 3) {
+      for (let i = 0; i < indices.length; i++) {
+        const existing = flagged.find((f) => f.index === indices[i]);
+        if (existing) {
+          existing.reasons.push({
+            type: 'repeated_content',
+            label: `Comment "${interactions[indices[i]].content?.trim().slice(0, 40)}" lặp lại ${indices.length} lần — tool spam copy-paste`,
+          });
+          if (existing.confidence === 'low') existing.confidence = 'medium';
+          existing.threatCategory = classifyThreat(existing.reasons);
+        } else {
+          flagged.push({
+            index: indices[i],
+            profileName: interactions[indices[i]].profileName || '(không rõ tên)',
+            profileUrl: interactions[indices[i]].profileUrl,
+            interactionType: interactions[indices[i]].interactionType,
+            reasons: [{
+              type: 'repeated_content',
+              label: `Comment "${interactions[indices[i]].content?.trim().slice(0, 40)}" lặp lại ${indices.length} lần`,
+            }],
+            content: interactions[indices[i]].content,
+            confidence: 'medium',
+            threatCategory: 'tool',
           });
         }
       }
@@ -177,6 +278,9 @@ function flagInteractions(interactions: InteractionEntry[]): {
   let spamCount = 0;
   let botNameCount = 0;
   let duplicateNames = 0;
+  let linkSpamCount = 0;
+  let scriptedCount = 0;
+  let repeatedContentCount = 0;
 
   for (const f of flagged) {
     for (const r of f.reasons) {
@@ -187,6 +291,9 @@ function flagInteractions(interactions: InteractionEntry[]): {
       if (r.type === 'spam_pattern') spamCount++;
       if (r.type === 'bot_name') botNameCount++;
       if (r.type === 'duplicate_name') duplicateNames++;
+      if (r.type === 'link_spam') linkSpamCount++;
+      if (r.type === 'scripted_pattern') scriptedCount++;
+      if (r.type === 'repeated_content') repeatedContentCount++;
     }
   }
 
@@ -198,7 +305,7 @@ function flagInteractions(interactions: InteractionEntry[]): {
   if (emptyPct >= 30) {
     signals.push({
       type: 'empty_profiles',
-      description: `${emptyProfileCount}/${total} (${emptyPct.toFixed(0)}%) tài khoản có trang cá nhân trống — dấu hiệu nick ảo.`,
+      description: `${emptyProfileCount}/${total} (${emptyPct.toFixed(0)}%) tài khoản có trang cá nhân trống — dấu hiệu nick buff.`,
       severity: emptyPct >= 60 ? 'danger' : 'warning',
     });
   }
@@ -222,7 +329,7 @@ function flagInteractions(interactions: InteractionEntry[]): {
   if (genericPct >= 40) {
     signals.push({
       type: 'generic_comments',
-      description: `${genericCommentCount} bình luận ngắn/generic — dấu hiệu comment tự động.`,
+      description: `${genericCommentCount} bình luận ngắn/generic — dấu hiệu comment tự động bằng tool.`,
       severity: genericPct >= 70 ? 'danger' : 'warning',
     });
   }
@@ -230,15 +337,31 @@ function flagInteractions(interactions: InteractionEntry[]): {
   if (spamCount > 0) {
     signals.push({
       type: 'spam_content',
-      description: `${spamCount} comment chứa nội dung spam/quảng cáo/link rút gọn.`,
+      description: `${spamCount} comment chứa nội dung scam/hack/quảng cáo.`,
       severity: spamCount >= 5 ? 'danger' : 'warning',
+    });
+  }
+
+  if (linkSpamCount > 0) {
+    signals.push({
+      type: 'link_spam',
+      description: `${linkSpamCount} comment chứa link ngoài/liên kết đáng ngờ — dấu hiệu hack/scam.`,
+      severity: linkSpamCount >= 3 ? 'danger' : 'warning',
+    });
+  }
+
+  if (scriptedCount > 0) {
+    signals.push({
+      type: 'scripted_patterns',
+      description: `${scriptedCount} comment có cấu trúc template/lặp — dấu hiệu script tự động.`,
+      severity: scriptedCount >= 3 ? 'danger' : 'warning',
     });
   }
 
   if (botNameCount > 0) {
     signals.push({
       type: 'bot_names',
-      description: `${botNameCount} tài khoản có tên theo pattern tự động (vd: User12345, số dài...) — dấu hiệu tạo hàng loạt.`,
+      description: `${botNameCount} tài khoản có tên theo pattern tự động — dấu hiệu tool tạo hàng loạt.`,
       severity: botNameCount >= 3 ? 'danger' : 'warning',
     });
   }
@@ -246,17 +369,20 @@ function flagInteractions(interactions: InteractionEntry[]): {
   if (duplicateNames > 0) {
     signals.push({
       type: 'duplicate_names',
-      description: `${duplicateNames} tên tài khoản lặp lại — có thể tool spam.`,
+      description: `${duplicateNames} tên tài khoản lặp lại — tool spam dùng cùng tài khoản.`,
       severity: duplicateNames >= 5 ? 'danger' : 'warning',
     });
   }
 
-  return { flagged, signals };
-}
+  if (repeatedContentCount > 0) {
+    signals.push({
+      type: 'repeated_content',
+      description: `${repeatedContentCount} comment trùng nội dung — tool copy-paste hàng loạt.`,
+      severity: repeatedContentCount >= 5 ? 'danger' : 'warning',
+    });
+  }
 
-// Helper to safely get profile name
-function it_profileName(entry: InteractionEntry): string {
-  return entry.profileName || '(không rõ)';
+  return { flagged, signals };
 }
 
 function analyzeEngagementRatios(input: ScanInput): {

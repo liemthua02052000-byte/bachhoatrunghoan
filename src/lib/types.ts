@@ -24,7 +24,12 @@ export type FlagReason =
   | 'generic_comment'
   | 'duplicate_name'
   | 'spam_pattern'
-  | 'bot_name';
+  | 'bot_name'
+  | 'repeated_content'
+  | 'link_spam'
+  | 'scripted_pattern';
+
+export type ThreatCategory = 'buff' | 'tool' | 'hack';
 
 export interface FlaggedAccount {
   index: number;
@@ -34,6 +39,7 @@ export interface FlaggedAccount {
   reasons: { type: FlagReason; label: string }[];
   content?: string;
   confidence: 'high' | 'medium' | 'low';
+  threatCategory: ThreatCategory;
 }
 
 export interface InteractionEntry {
