@@ -670,76 +670,50 @@ function estimateFakeAccounts(
   const totalShares = input.totalShares;
   const totalEng = totalReactions + totalComments + totalShares;
 
-  // If we have real interaction samples, use actual flagged counts
-  if (input.interactions.length > 0 && interactionResult.flagged.length > 0) {
-    const flagged = interactionResult.flagged;
-    const buffCount = flagged.filter((f) => f.threatCategory === 'buff').length;
-    const toolCount = flagged.filter((f) => f.threatCategory === 'tool').length;
-    const hackCount = flagged.filter((f) => f.threatCategory === 'hack').length;
-    const cleanCount = flagged.filter((f) => f.threatCategory === 'clean').length;
-    const sampleTotal = input.interactions.length;
-    const sampleFake = buffCount + toolCount + hackCount;
-    const fakeRate = sampleTotal > 0 ? sampleFake / sampleTotal : 0;
-
-    // Scale up to full engagement
-    const totalFake = Math.round(fakeRate * totalEng);
-    const buff = Math.round((buffCount / Math.max(sampleFake, 1)) * totalFake);
-    const tool = Math.round((toolCount / Math.max(sampleFake, 1)) * totalFake);
-    const hack = Math.round((hackCount / Math.max(sampleFake, 1)) * totalFake);
-    const real = Math.max(totalEng - totalFake, 0);
-
-    return {
-      totalFake,
-      buff,
-      tool,
-      hack,
-      real,
-      total: totalEng,
-      confidence: sampleTotal >= 10 ? 'high' : sampleTotal >= 5 ? 'medium' : 'low',
-      method: `Dựa trên ${sampleTotal} mẫu tài khoản đã kiểm tra (${(fakeRate * 100).toFixed(0)}% là ảo)`,
-    };
-  }
-
-  // No interaction samples — estimate from engagement metrics
   const signalTypes = new Set(signals.map((s) => s.type));
   const dangerCount = signals.filter((s) => s.severity === 'danger').length;
   const warningCount = signals.filter((s) => s.severity === 'warning').length;
 
-  // Base fake rate from signal strength
-  let fakeRate = 0;
-  let method = '';
+  // Compute per-type fake rates based on signals
+  let reactFakeRate = 0;
+  let commentFakeRate = 0;
+  let shareFakeRate = 0;
+  let methodParts: string[] = [];
 
   if (totalEng === 0) {
-    return { totalFake: 0, buff: 0, tool: 0, hack: 0, real: 0, total: 0, confidence: 'low', method: 'Không có dữ liệu tương tác' };
+    return {
+      totalFake: 0, buff: 0, tool: 0, hack: 0, real: 0, total: 0,
+      confidence: 'low', method: 'Không có dữ liệu tương tác',
+      fakeReactions: 0, fakeComments: 0, fakeShares: 0,
+      realReactions: 0, realComments: 0, realShares: 0,
+    };
   }
 
-  // Reaction/comment ratio analysis
+  // --- REACTION fake rate ---
   const ratio = totalComments > 0 ? totalReactions / totalComments : 0;
-
   if (signalTypes.has('extreme_reaction_comment_ratio') || ratio > 100) {
-    fakeRate = 0.65;
-    method = 'Tỷ lệ react/comment cực cao (>100:1) — ước tính ~65% tương tác là ảo';
+    reactFakeRate = 0.70;
+    methodParts.push('Tỷ lệ react/comment cực cao (>100:1) — ~70% react là ảo');
   } else if (signalTypes.has('high_reaction_comment_ratio') || ratio > 50) {
-    fakeRate = 0.40;
-    method = 'Tỷ lệ react/comment cao (>50:1) — ước tính ~40% tương tác là ảo';
+    reactFakeRate = 0.45;
+    methodParts.push('Tỷ lệ react/comment cao (>50:1) — ~45% react là ảo');
   } else if (ratio > 30 && totalReactions > 200) {
-    fakeRate = 0.25;
-    method = 'Tỷ lệ react/comment hơi cao — ước tính ~25% tương tác là ảo';
-  } else if (ratio > 0 && ratio < 30) {
-    fakeRate = 0.10;
-    method = 'Tỷ lệ react/comment bình thường — ước tính ~10% tương tác là ảo';
+    reactFakeRate = 0.25;
+    methodParts.push('Tỷ lệ react/comment hơi cao — ~25% react là ảo');
+  } else {
+    reactFakeRate = 0.10;
+    methodParts.push('Tỷ lệ react/comment bình thường — ~10% react là ảo');
   }
 
-  // Adjust for reaction breakdown
+  // Reaction breakdown adjustments
   const bd = input.reactionBreakdown;
   const bdTotal = Object.values(bd).reduce((a, b) => a + (b ?? 0), 0);
   if (bdTotal > 0) {
     const likePct = ((bd.like ?? 0) / bdTotal) * 100;
     if (likePct >= 95) {
-      fakeRate = Math.min(fakeRate + 0.15, 0.85);
-      method += ', 95%+ là Like (tool buff thường chỉ dùng Like)';
+      reactFakeRate = Math.min(reactFakeRate + 0.15, 0.90);
+      methodParts.push('95%+ là Like (tool buff thường chỉ dùng Like)');
     }
-    // Check uniform distribution
     const reactionTypes = ['like', 'love', 'haha', 'wow', 'sad', 'angry'] as const;
     const nonZero = reactionTypes.filter((t) => (bd[t] ?? 0) > 0);
     if (nonZero.length >= 4) {
@@ -748,50 +722,96 @@ function estimateFakeAccounts(
       const variance = values.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / values.length;
       const cv = avg > 0 ? Math.sqrt(variance) / avg : 0;
       if (cv < 0.1) {
-        fakeRate = Math.min(fakeRate + 0.10, 0.85);
-        method += ', phân bổ react quá đều (dấu hiệu tool)';
+        reactFakeRate = Math.min(reactFakeRate + 0.10, 0.90);
+        methodParts.push('phân bổ react quá đều (dấu hiệu tool)');
       }
     }
   }
 
-  // Adjust for timing
+  // Timing adjustments affect all types
   if (signalTypes.has('burst_engagement')) {
-    fakeRate = Math.min(fakeRate + 0.20, 0.90);
-    method += ', tương tác bùng nổ trong <1 giờ';
+    reactFakeRate = Math.min(reactFakeRate + 0.15, 0.95);
+    commentFakeRate += 0.15;
+    shareFakeRate += 0.15;
+    methodParts.push('tương tác bùng nổ trong <1 giờ');
   } else if (signalTypes.has('rapid_engagement')) {
-    fakeRate = Math.min(fakeRate + 0.10, 0.85);
-    method += ', tương tác tăng nhanh bất thường';
+    reactFakeRate = Math.min(reactFakeRate + 0.08, 0.90);
+    commentFakeRate += 0.08;
+    shareFakeRate += 0.08;
+    methodParts.push('tương tác tăng nhanh bất thường');
   }
 
-  // Adjust for low comments
+  // --- COMMENT fake rate ---
   if (signalTypes.has('low_comment_high_reaction')) {
-    fakeRate = Math.min(fakeRate + 0.15, 0.90);
-    method += ', nhiều react nhưng quá ít comment';
+    // Many reacts but very few comments — comments that exist are likely real
+    commentFakeRate = 0.15;
+    methodParts.push('nhiều react nhưng quá ít comment → comment ít ảo hơn');
+  } else {
+    commentFakeRate = Math.max(reactFakeRate - 0.10, 0.05);
+  }
+  if (signalTypes.has('generic_comments') || signalTypes.has('repeated_content')) {
+    commentFakeRate = Math.min(commentFakeRate + 0.20, 0.85);
+    methodParts.push('comment ngắn/generic lặp lại — comment ảo cao');
+  }
+  if (signalTypes.has('bot_names') || signalTypes.has('duplicate_names')) {
+    commentFakeRate = Math.min(commentFakeRate + 0.15, 0.85);
+  }
+  if (signalTypes.has('spam_content') || signalTypes.has('link_spam') || signalTypes.has('scripted_patterns')) {
+    commentFakeRate = Math.min(commentFakeRate + 0.15, 0.90);
   }
 
-  // Adjust for share anomalies
+  // --- SHARE fake rate ---
   if (signalTypes.has('high_share_ratio')) {
-    fakeRate = Math.min(fakeRate + 0.10, 0.85);
-    method += ', tỷ lệ share cao bất thường';
+    shareFakeRate = 0.50;
+    methodParts.push('tỷ lệ share cao bất thường — ~50% share là ảo');
+  } else if (signalTypes.has('zero_shares')) {
+    shareFakeRate = 0.05;
+  } else {
+    shareFakeRate = Math.max(reactFakeRate - 0.05, 0.05);
+  }
+  if (signalTypes.has('burst_engagement')) {
+    shareFakeRate = Math.min(shareFakeRate + 0.10, 0.90);
   }
 
-  // Danger signals bump up
+  // Danger signals bump all
   if (dangerCount >= 3) {
-    fakeRate = Math.min(fakeRate + 0.10, 0.90);
+    reactFakeRate = Math.min(reactFakeRate + 0.08, 0.95);
+    commentFakeRate = Math.min(commentFakeRate + 0.08, 0.95);
+    shareFakeRate = Math.min(shareFakeRate + 0.08, 0.95);
   }
 
-  if (fakeRate === 0) {
-    fakeRate = 0.05;
-    method = 'Không phát hiện dấu hiệu bất thường — ước tính ~5% tương tác là ảo (mức cơ bản)';
+  // If we have interaction samples, use actual flagged rate to refine
+  if (input.interactions.length > 0 && interactionResult.flagged.length > 0) {
+    const flagged = interactionResult.flagged;
+    const sampleTotal = input.interactions.length;
+    const sampleFake = flagged.filter((f) => f.threatCategory !== 'clean').length;
+    const sampleRate = sampleTotal > 0 ? sampleFake / sampleTotal : 0;
+    // Blend: weight sample rate 60%, metric-based rate 40%
+    reactFakeRate = reactFakeRate * 0.4 + sampleRate * 0.6;
+    commentFakeRate = commentFakeRate * 0.4 + sampleRate * 0.6;
+    shareFakeRate = shareFakeRate * 0.4 + sampleRate * 0.6;
+    methodParts.unshift(`Dựa trên ${sampleTotal} mẫu tài khoản (${(sampleRate * 100).toFixed(0)}% là ảo) + số liệu tương tác`);
   }
 
-  const totalFake = Math.round(fakeRate * totalEng);
+  // Clamp
+  reactFakeRate = Math.min(Math.max(reactFakeRate, 0), 0.95);
+  commentFakeRate = Math.min(Math.max(commentFakeRate, 0), 0.95);
+  shareFakeRate = Math.min(Math.max(shareFakeRate, 0), 0.95);
 
-  // Split into buff/tool/hack based on signal types
+  const fakeReactions = Math.round(reactFakeRate * totalReactions);
+  const fakeComments = Math.round(commentFakeRate * totalComments);
+  const fakeShares = Math.round(shareFakeRate * totalShares);
+  const realReactions = Math.max(totalReactions - fakeReactions, 0);
+  const realComments = Math.max(totalComments - fakeComments, 0);
+  const realShares = Math.max(totalShares - fakeShares, 0);
+
+  const totalFake = fakeReactions + fakeComments + fakeShares;
+  const real = realReactions + realComments + realShares;
+
+  // Split into buff/tool/hack
   let buffRate = 0.5;
   let toolRate = 0.3;
   let hackRate = 0.2;
-
   if (signalTypes.has('like_dominant') || signalTypes.has('uniform_reactions')) {
     buffRate += 0.15;
     toolRate -= 0.05;
@@ -804,16 +824,13 @@ function estimateFakeAccounts(
     hackRate += 0.15;
     buffRate -= 0.05;
   }
-
   const sum = buffRate + toolRate + hackRate;
   buffRate /= sum;
   toolRate /= sum;
   hackRate /= sum;
-
   const buff = Math.round(totalFake * buffRate);
   const tool = Math.round(totalFake * toolRate);
   const hack = Math.max(totalFake - buff - tool, 0);
-  const real = Math.max(totalEng - totalFake, 0);
 
   const confidence: 'high' | 'medium' | 'low' =
     dangerCount >= 2 ? 'high' : dangerCount >= 1 || warningCount >= 3 ? 'medium' : 'low';
@@ -826,7 +843,13 @@ function estimateFakeAccounts(
     real,
     total: totalEng,
     confidence,
-    method,
+    method: methodParts.join(', '),
+    fakeReactions,
+    fakeComments,
+    fakeShares,
+    realReactions,
+    realComments,
+    realShares,
   };
 }
 

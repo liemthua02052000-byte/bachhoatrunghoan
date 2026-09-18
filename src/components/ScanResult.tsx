@@ -340,6 +340,37 @@ function FakeEstimateCard({ estimate }: { estimate: FakeEstimate }) {
         )}
       </div>
 
+      {/* Per-type breakdown */}
+      <div className="mb-4 space-y-3">
+        <TypeBreakdownRow
+          icon={<ThumbsUp className="h-4 w-4 text-blue-600" />}
+          label="React ảo"
+          fakeCount={estimate.fakeReactions}
+          realCount={estimate.realReactions}
+          total={estimate.fakeReactions + estimate.realReactions}
+          fakeColor="bg-blue-500"
+          realColor="bg-blue-200"
+        />
+        <TypeBreakdownRow
+          icon={<MessageSquare className="h-4 w-4 text-green-600" />}
+          label="Comment ảo"
+          fakeCount={estimate.fakeComments}
+          realCount={estimate.realComments}
+          total={estimate.fakeComments + estimate.realComments}
+          fakeColor="bg-green-500"
+          realColor="bg-green-200"
+        />
+        <TypeBreakdownRow
+          icon={<Share2 className="h-4 w-4 text-purple-600" />}
+          label="Share ảo"
+          fakeCount={estimate.fakeShares}
+          realCount={estimate.realShares}
+          total={estimate.fakeShares + estimate.realShares}
+          fakeColor="bg-purple-500"
+          realColor="bg-purple-200"
+        />
+      </div>
+
       {/* Category breakdown */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {categories.map((cat) => {
@@ -364,6 +395,54 @@ function FakeEstimateCard({ estimate }: { estimate: FakeEstimate }) {
           <span className="font-semibold">Cách tính: </span>{estimate.method}
         </p>
       </div>
+    </div>
+  );
+}
+
+function TypeBreakdownRow({
+  icon,
+  label,
+  fakeCount,
+  realCount,
+  total,
+  fakeColor,
+  realColor,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  fakeCount: number;
+  realCount: number;
+  total: number;
+  fakeColor: string;
+  realColor: string;
+}) {
+  const fakePct = total > 0 ? (fakeCount / total) * 100 : 0;
+  const realPct = 100 - fakePct;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-sm font-semibold text-gray-900">{label}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-bold text-red-600">{fakeCount.toLocaleString('vi-VN')} ảo</span>
+          <span className="text-gray-300">/</span>
+          <span className="font-medium text-emerald-600">{realCount.toLocaleString('vi-VN')} thật</span>
+        </div>
+      </div>
+      <div className="flex h-2 overflow-hidden rounded-full bg-gray-100">
+        {fakePct > 0 && (
+          <div className={`h-full ${fakeColor}`} style={{ width: `${fakePct}%` }} />
+        )}
+        {realPct > 0 && (
+          <div className={`h-full ${realColor}`} style={{ width: `${realPct}%` }} />
+        )}
+      </div>
+      <p className="mt-1 text-xs text-gray-400">
+        {fakePct.toFixed(0)}% ảo · {realPct.toFixed(0)}% thật
+      </p>
     </div>
   );
 }

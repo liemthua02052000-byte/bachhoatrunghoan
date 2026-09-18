@@ -89,6 +89,12 @@ export interface FakeEstimate {
   total: number;
   confidence: 'high' | 'medium' | 'low';
   method: string;
+  fakeReactions: number;
+  fakeComments: number;
+  fakeShares: number;
+  realReactions: number;
+  realComments: number;
+  realShares: number;
 }
 
 export interface ScanReport {

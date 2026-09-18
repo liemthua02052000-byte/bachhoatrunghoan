@@ -176,6 +176,12 @@ export function Dashboard() {
                       total: 0,
                       confidence: 'low',
                       method: 'Không có dữ liệu',
+                      fakeReactions: 0,
+                      fakeComments: 0,
+                      fakeShares: 0,
+                      realReactions: 0,
+                      realComments: 0,
+                      realShares: 0,
                     },
                   }}
                   input={{
