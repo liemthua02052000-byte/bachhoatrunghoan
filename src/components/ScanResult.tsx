@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { DetectedSignal, FlaggedAccount } from '@/lib/types';
+import type { DetectedSignal, FlaggedAccount, FakeEstimate } from '@/lib/types';
 import { RiskGauge } from './RiskBadge';
 import { FlaggedAccountsList } from './FlaggedAccountsList';
 import {
@@ -18,6 +18,10 @@ import {
   Zap,
   Frown,
   Angry,
+  Bot,
+  Terminal,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -30,6 +34,7 @@ interface Props {
     totalInteractionCount: number;
     flaggedAccounts: FlaggedAccount[];
     allAccounts: FlaggedAccount[];
+    fakeEstimate: FakeEstimate;
   };
   input: {
     totalReactions: number;
@@ -171,6 +176,11 @@ export function ScanResult({ result, input }: Props) {
         </div>
       )}
 
+      {/* Fake account estimate */}
+      {result.fakeEstimate && result.fakeEstimate.total > 0 && (
+        <FakeEstimateCard estimate={result.fakeEstimate} />
+      )}
+
       {/* Interaction analysis */}
       {result.totalInteractionCount > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -272,6 +282,88 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
         <span className="text-xs font-medium text-gray-500">{label}</span>
       </div>
       <p className="mt-2 text-xl font-bold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function FakeEstimateCard({ estimate }: { estimate: FakeEstimate }) {
+  const fakePct = estimate.total > 0 ? (estimate.totalFake / estimate.total) * 100 : 0;
+  const realPct = 100 - fakePct;
+
+  const confidenceConfig = {
+    high: { label: 'Độ tin cậy cao', color: 'text-emerald-600', bg: 'bg-emerald-100' },
+    medium: { label: 'Độ tin cậy trung bình', color: 'text-amber-600', bg: 'bg-amber-100' },
+    low: { label: 'Độ tin cậy thấp', color: 'text-gray-500', bg: 'bg-gray-100' },
+  };
+  const conf = confidenceConfig[estimate.confidence];
+
+  const categories = [
+    { key: 'buff', label: 'Buff tương tác', count: estimate.buff, icon: <Zap className="h-4 w-4" />, color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
+    { key: 'tool', label: 'Tool tự động', count: estimate.tool, icon: <Bot className="h-4 w-4" />, color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
+    { key: 'hack', label: 'Hack / Scam', count: estimate.hack, icon: <Terminal className="h-4 w-4" />, color: 'text-red-600', bg: 'bg-red-100', border: 'border-red-200' },
+    { key: 'real', label: 'Tài khoản thật', count: estimate.real, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },
+  ];
+
+  return (
+    <div className="rounded-2xl border-2 border-gray-200 bg-white p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-blue-500" />
+          <h4 className="text-base font-bold text-gray-900">Ước lượng tài khoản ảo</h4>
+        </div>
+        <span className={`inline-flex items-center gap-1 rounded-full ${conf.bg} px-3 py-1 text-xs font-semibold ${conf.color}`}>
+          {conf.label}
+        </span>
+      </div>
+
+      {/* Big number */}
+      <div className="mb-4 flex items-end gap-3">
+        <div>
+          <p className="text-3xl font-bold text-red-600">
+            {estimate.totalFake.toLocaleString('vi-VN')}
+          </p>
+          <p className="text-xs text-gray-500">tài khoản ảo / {estimate.total.toLocaleString('vi-VN')} tổng tương tác</p>
+        </div>
+        <div className="ml-auto text-right">
+          <p className="text-2xl font-bold text-emerald-600">{fakePct.toFixed(0)}%</p>
+          <p className="text-xs text-gray-500">tỷ lệ ảo</p>
+        </div>
+      </div>
+
+      {/* Stacked bar */}
+      <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-gray-100">
+        {fakePct > 0 && (
+          <div className="h-full bg-gradient-to-r from-red-500 to-orange-500" style={{ width: `${fakePct}%` }} />
+        )}
+        {realPct > 0 && (
+          <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-400" style={{ width: `${realPct}%` }} />
+        )}
+      </div>
+
+      {/* Category breakdown */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {categories.map((cat) => {
+          if (cat.count === 0) return null;
+          const pct = estimate.total > 0 ? (cat.count / estimate.total) * 100 : 0;
+          return (
+            <div key={cat.key} className={`rounded-lg border ${cat.border} ${cat.bg} p-3 text-center`}>
+              <div className={`mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full ${cat.bg} ${cat.color}`}>
+                {cat.icon}
+              </div>
+              <p className={`text-lg font-bold ${cat.color}`}>{cat.count.toLocaleString('vi-VN')}</p>
+              <p className="text-xs font-medium text-gray-600">{cat.label}</p>
+              <p className="text-xs text-gray-400">{pct.toFixed(0)}%</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Method explanation */}
+      <div className="mt-4 rounded-lg bg-gray-50 px-3 py-2">
+        <p className="text-xs text-gray-500 leading-relaxed">
+          <span className="font-semibold">Cách tính: </span>{estimate.method}
+        </p>
+      </div>
     </div>
   );
 }

@@ -77,6 +77,18 @@ export interface ScanResult {
   totalInteractionCount: number;
   flaggedAccounts: FlaggedAccount[];
   allAccounts: FlaggedAccount[];
+  fakeEstimate: FakeEstimate;
+}
+
+export interface FakeEstimate {
+  totalFake: number;
+  buff: number;
+  tool: number;
+  hack: number;
+  real: number;
+  total: number;
+  confidence: 'high' | 'medium' | 'low';
+  method: string;
 }
 
 export interface ScanReport {

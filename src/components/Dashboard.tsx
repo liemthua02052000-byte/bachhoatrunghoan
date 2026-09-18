@@ -167,6 +167,16 @@ export function Dashboard() {
                     totalInteractionCount: 0,
                     flaggedAccounts: [],
                     allAccounts: [],
+                    fakeEstimate: {
+                      totalFake: 0,
+                      buff: 0,
+                      tool: 0,
+                      hack: 0,
+                      real: 0,
+                      total: 0,
+                      confidence: 'low',
+                      method: 'Không có dữ liệu',
+                    },
                   }}
                   input={{
                     totalReactions: selectedReport.total_reactions,

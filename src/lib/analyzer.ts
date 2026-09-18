@@ -7,6 +7,7 @@ import type {
   FlaggedAccount,
   FlagReason,
   ThreatCategory,
+  FakeEstimate,
 } from './types';
 
 function classifyRisk(score: number): RiskLevel {
@@ -659,6 +660,176 @@ function analyzePostTiming(input: ScanInput): DetectedSignal[] {
   return signals;
 }
 
+function estimateFakeAccounts(
+  input: ScanInput,
+  signals: DetectedSignal[],
+  interactionResult: { flagged: FlaggedAccount[]; signals: DetectedSignal[] }
+): FakeEstimate {
+  const totalReactions = input.totalReactions;
+  const totalComments = input.totalComments;
+  const totalShares = input.totalShares;
+  const totalEng = totalReactions + totalComments + totalShares;
+
+  // If we have real interaction samples, use actual flagged counts
+  if (input.interactions.length > 0 && interactionResult.flagged.length > 0) {
+    const flagged = interactionResult.flagged;
+    const buffCount = flagged.filter((f) => f.threatCategory === 'buff').length;
+    const toolCount = flagged.filter((f) => f.threatCategory === 'tool').length;
+    const hackCount = flagged.filter((f) => f.threatCategory === 'hack').length;
+    const cleanCount = flagged.filter((f) => f.threatCategory === 'clean').length;
+    const sampleTotal = input.interactions.length;
+    const sampleFake = buffCount + toolCount + hackCount;
+    const fakeRate = sampleTotal > 0 ? sampleFake / sampleTotal : 0;
+
+    // Scale up to full engagement
+    const totalFake = Math.round(fakeRate * totalEng);
+    const buff = Math.round((buffCount / Math.max(sampleFake, 1)) * totalFake);
+    const tool = Math.round((toolCount / Math.max(sampleFake, 1)) * totalFake);
+    const hack = Math.round((hackCount / Math.max(sampleFake, 1)) * totalFake);
+    const real = Math.max(totalEng - totalFake, 0);
+
+    return {
+      totalFake,
+      buff,
+      tool,
+      hack,
+      real,
+      total: totalEng,
+      confidence: sampleTotal >= 10 ? 'high' : sampleTotal >= 5 ? 'medium' : 'low',
+      method: `Dựa trên ${sampleTotal} mẫu tài khoản đã kiểm tra (${(fakeRate * 100).toFixed(0)}% là ảo)`,
+    };
+  }
+
+  // No interaction samples — estimate from engagement metrics
+  const signalTypes = new Set(signals.map((s) => s.type));
+  const dangerCount = signals.filter((s) => s.severity === 'danger').length;
+  const warningCount = signals.filter((s) => s.severity === 'warning').length;
+
+  // Base fake rate from signal strength
+  let fakeRate = 0;
+  let method = '';
+
+  if (totalEng === 0) {
+    return { totalFake: 0, buff: 0, tool: 0, hack: 0, real: 0, total: 0, confidence: 'low', method: 'Không có dữ liệu tương tác' };
+  }
+
+  // Reaction/comment ratio analysis
+  const ratio = totalComments > 0 ? totalReactions / totalComments : 0;
+
+  if (signalTypes.has('extreme_reaction_comment_ratio') || ratio > 100) {
+    fakeRate = 0.65;
+    method = 'Tỷ lệ react/comment cực cao (>100:1) — ước tính ~65% tương tác là ảo';
+  } else if (signalTypes.has('high_reaction_comment_ratio') || ratio > 50) {
+    fakeRate = 0.40;
+    method = 'Tỷ lệ react/comment cao (>50:1) — ước tính ~40% tương tác là ảo';
+  } else if (ratio > 30 && totalReactions > 200) {
+    fakeRate = 0.25;
+    method = 'Tỷ lệ react/comment hơi cao — ước tính ~25% tương tác là ảo';
+  } else if (ratio > 0 && ratio < 30) {
+    fakeRate = 0.10;
+    method = 'Tỷ lệ react/comment bình thường — ước tính ~10% tương tác là ảo';
+  }
+
+  // Adjust for reaction breakdown
+  const bd = input.reactionBreakdown;
+  const bdTotal = Object.values(bd).reduce((a, b) => a + (b ?? 0), 0);
+  if (bdTotal > 0) {
+    const likePct = ((bd.like ?? 0) / bdTotal) * 100;
+    if (likePct >= 95) {
+      fakeRate = Math.min(fakeRate + 0.15, 0.85);
+      method += ', 95%+ là Like (tool buff thường chỉ dùng Like)';
+    }
+    // Check uniform distribution
+    const reactionTypes = ['like', 'love', 'haha', 'wow', 'sad', 'angry'] as const;
+    const nonZero = reactionTypes.filter((t) => (bd[t] ?? 0) > 0);
+    if (nonZero.length >= 4) {
+      const values = nonZero.map((t) => bd[t] ?? 0);
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      const variance = values.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / values.length;
+      const cv = avg > 0 ? Math.sqrt(variance) / avg : 0;
+      if (cv < 0.1) {
+        fakeRate = Math.min(fakeRate + 0.10, 0.85);
+        method += ', phân bổ react quá đều (dấu hiệu tool)';
+      }
+    }
+  }
+
+  // Adjust for timing
+  if (signalTypes.has('burst_engagement')) {
+    fakeRate = Math.min(fakeRate + 0.20, 0.90);
+    method += ', tương tác bùng nổ trong <1 giờ';
+  } else if (signalTypes.has('rapid_engagement')) {
+    fakeRate = Math.min(fakeRate + 0.10, 0.85);
+    method += ', tương tác tăng nhanh bất thường';
+  }
+
+  // Adjust for low comments
+  if (signalTypes.has('low_comment_high_reaction')) {
+    fakeRate = Math.min(fakeRate + 0.15, 0.90);
+    method += ', nhiều react nhưng quá ít comment';
+  }
+
+  // Adjust for share anomalies
+  if (signalTypes.has('high_share_ratio')) {
+    fakeRate = Math.min(fakeRate + 0.10, 0.85);
+    method += ', tỷ lệ share cao bất thường';
+  }
+
+  // Danger signals bump up
+  if (dangerCount >= 3) {
+    fakeRate = Math.min(fakeRate + 0.10, 0.90);
+  }
+
+  if (fakeRate === 0) {
+    fakeRate = 0.05;
+    method = 'Không phát hiện dấu hiệu bất thường — ước tính ~5% tương tác là ảo (mức cơ bản)';
+  }
+
+  const totalFake = Math.round(fakeRate * totalEng);
+
+  // Split into buff/tool/hack based on signal types
+  let buffRate = 0.5;
+  let toolRate = 0.3;
+  let hackRate = 0.2;
+
+  if (signalTypes.has('like_dominant') || signalTypes.has('uniform_reactions')) {
+    buffRate += 0.15;
+    toolRate -= 0.05;
+  }
+  if (signalTypes.has('bot_names') || signalTypes.has('duplicate_names') || signalTypes.has('repeated_content')) {
+    toolRate += 0.15;
+    buffRate -= 0.10;
+  }
+  if (signalTypes.has('spam_content') || signalTypes.has('link_spam') || signalTypes.has('scripted_patterns')) {
+    hackRate += 0.15;
+    buffRate -= 0.05;
+  }
+
+  const sum = buffRate + toolRate + hackRate;
+  buffRate /= sum;
+  toolRate /= sum;
+  hackRate /= sum;
+
+  const buff = Math.round(totalFake * buffRate);
+  const tool = Math.round(totalFake * toolRate);
+  const hack = Math.max(totalFake - buff - tool, 0);
+  const real = Math.max(totalEng - totalFake, 0);
+
+  const confidence: 'high' | 'medium' | 'low' =
+    dangerCount >= 2 ? 'high' : dangerCount >= 1 || warningCount >= 3 ? 'medium' : 'low';
+
+  return {
+    totalFake,
+    buff,
+    tool,
+    hack,
+    real,
+    total: totalEng,
+    confidence,
+    method,
+  };
+}
+
 export function analyzePost(input: ScanInput): ScanResult {
   const allSignals: DetectedSignal[] = [];
 
@@ -691,6 +862,8 @@ export function analyzePost(input: ScanInput): ScanResult {
   const allAccounts = interactionResult.flagged;
   const flaggedOnly = allAccounts.filter((a) => a.threatCategory !== 'clean');
 
+  const fakeEstimate = estimateFakeAccounts(input, allSignals, interactionResult);
+
   return {
     riskScore: score,
     riskLevel: classifyRisk(score),
@@ -700,5 +873,6 @@ export function analyzePost(input: ScanInput): ScanResult {
     totalInteractionCount: input.interactions.length,
     flaggedAccounts: flaggedOnly,
     allAccounts,
+    fakeEstimate,
   };
 }

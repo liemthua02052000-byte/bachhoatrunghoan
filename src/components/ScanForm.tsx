@@ -120,9 +120,12 @@ export function ScanForm({ onSaved }: Props) {
     const hasNamedInteraction = interactions.some(
       (it) => it.profileName.trim().length > 0
     );
-    if (interactions.length === 0 || !hasNamedInteraction) {
+    const hasEngagementData =
+      parseInt(totalReactions) > 0 || parseInt(totalComments) > 0 || parseInt(totalShares) > 0;
+
+    if (!hasNamedInteraction && !hasEngagementData) {
       setInteractError(
-        'Vui lòng thêm ít nhất một tài khoản comment/react (nhập tên tài khoản) để kiểm tra nick ảo.'
+        'Vui lòng nhập số liệu tương tác (react, comment, share) hoặc dán danh sách comment để hệ thống phân tích.'
       );
       return;
     }
