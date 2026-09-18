@@ -32,7 +32,17 @@ export function ScanForm({ onSaved }: Props) {
   const [wow, setWow] = useState('');
   const [sad, setSad] = useState('');
   const [angry, setAngry] = useState('');
-  const [interactions, setInteractions] = useState<InteractionEntry[]>([]);
+  const [interactions, setInteractions] = useState<InteractionEntry[]>([
+    {
+      interactionType: 'comment',
+      profileName: '',
+      isEmptyProfile: false,
+      isNewAccount: false,
+      hasProfilePhoto: true,
+      content: '',
+    },
+  ]);
+  const [interactError, setInteractError] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ReturnType<typeof analyzePost> | null>(null);
   const [error, setError] = useState('');
@@ -64,13 +74,28 @@ export function ScanForm({ onSaved }: Props) {
   async function handleAnalyze() {
     setError('');
     setResult(null);
+    setInteractError('');
 
     if (!postUrl.trim()) {
       setError('Vui lòng nhập link bài viết Facebook cần kiểm tra.');
       return;
     }
 
+    const hasNamedInteraction = interactions.some(
+      (it) => it.profileName.trim().length > 0
+    );
+    if (interactions.length === 0 || !hasNamedInteraction) {
+      setInteractError(
+        'Vui lòng thêm ít nhất một tài khoản comment/react (nhập tên tài khoản) để kiểm tra nick ảo.'
+      );
+      return;
+    }
+
     setAnalyzing(true);
+
+    const validInteractions = interactions.filter(
+      (it) => it.profileName.trim().length > 0
+    );
 
     const input: ScanInput = {
       postUrl: postUrl.trim(),
@@ -87,7 +112,7 @@ export function ScanForm({ onSaved }: Props) {
         sad: parseInt(sad) || 0,
         angry: parseInt(angry) || 0,
       },
-      interactions,
+      interactions: validInteractions,
     };
 
     const analysisResult = analyzePost(input);
@@ -286,6 +311,12 @@ export function ScanForm({ onSaved }: Props) {
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {interactError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {interactError}
         </div>
       )}
 

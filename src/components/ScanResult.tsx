@@ -196,12 +196,28 @@ export function ScanResult({ result, input }: Props) {
       )}
 
       {/* Flagged accounts list */}
-      {result.totalInteractionCount > 0 && (
+      {result.totalInteractionCount > 0 ? (
         <div>
           <h4 className="mb-3 text-base font-bold text-gray-900">
             Danh sách tài khoản tương tác
           </h4>
           <FlaggedAccountsList accounts={result.allAccounts} />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+          <div className="flex items-start gap-3">
+            <Users className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900">
+                Chưa có dữ liệu tài khoản tương tác
+              </p>
+              <p className="mt-1 text-sm text-blue-700 leading-relaxed">
+                Để kiểm tra từng tài khoản nick ảo, hãy thêm tên các tài khoản comment/react
+                vào phần "Mẫu tài khoản tương tác" ở trên rồi bấm Phân tích lại.
+                Mỗi tài khoản sẽ được dán nhãn Buff, Tool, Hack, hoặc Sạch.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
