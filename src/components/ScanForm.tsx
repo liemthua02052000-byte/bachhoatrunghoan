@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ScanInput, InteractionEntry } from '@/lib/types';
 import { analyzePost } from '@/lib/analyzer';
 import { saveScanReport } from '@/lib/scan-service';
+import { parseFacebookComments, parsedToInteractions } from '@/lib/comment-parser';
 import { ScanResult } from './ScanResult';
 import {
   ThumbsUp,
@@ -12,6 +13,8 @@ import {
   Trash2,
   Loader2,
   ScanLine,
+  ClipboardPaste,
+  Sparkles,
   HelpCircle,
 } from 'lucide-react';
 
@@ -43,6 +46,8 @@ export function ScanForm({ onSaved }: Props) {
     },
   ]);
   const [interactError, setInteractError] = useState('');
+  const [pasteArea, setPasteArea] = useState('');
+  const [pasteInfo, setPasteInfo] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ReturnType<typeof analyzePost> | null>(null);
   const [error, setError] = useState('');
@@ -69,6 +74,37 @@ export function ScanForm({ onSaved }: Props) {
 
   function removeInteraction(idx: number) {
     setInteractions(interactions.filter((_, i) => i !== idx));
+  }
+
+  function handleParsePaste() {
+    const parsed = parseFacebookComments(pasteArea);
+    if (parsed.length === 0) {
+      setPasteInfo('Không tìm thấy tên tài khoản nào trong nội dung dán. Hãy thử copy lại danh sách comment từ Facebook.');
+      return;
+    }
+    const newInteractions = parsedToInteractions(parsed);
+    // Merge: keep existing named interactions, append new ones (deduplicate by name)
+    const existingNames = new Set(
+      interactions.filter((it) => it.profileName.trim()).map((it) => it.profileName.trim().toLowerCase())
+    );
+    const toAdd = newInteractions.filter((it) => !existingNames.has(it.profileName.trim().toLowerCase()));
+    const allInteractions = [
+      ...interactions.filter((it) => it.profileName.trim().length > 0),
+      ...toAdd,
+    ];
+    if (allInteractions.length === 0) {
+      allInteractions.push({
+        interactionType: 'comment',
+        profileName: '',
+        isEmptyProfile: false,
+        isNewAccount: false,
+        hasProfilePhoto: true,
+        content: '',
+      });
+    }
+    setInteractions(allInteractions);
+    setPasteInfo(`Đã trích xuất ${toAdd.length} tài khoản từ nội dung dán. Tổng cộng ${allInteractions.length} tài khoản.`);
+    setPasteArea('');
   }
 
   async function handleAnalyze() {
@@ -215,13 +251,49 @@ export function ScanForm({ onSaved }: Props) {
         </div>
       </div>
 
+      {/* Paste comments — auto extract */}
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              <Sparkles className="h-4 w-4 text-blue-500" />
+              Dán danh sách comment để tự động quét
+            </h3>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Copy toàn bộ phần comment từ Facebook, dán vào đây — hệ thống tự tách tên tài khoản và nội dung
+            </p>
+          </div>
+        </div>
+        <textarea
+          value={pasteArea}
+          onChange={(e) => setPasteArea(e.target.value)}
+          rows={6}
+          placeholder={
+            'Dán danh sách comment từ Facebook vào đây...\n\nVí dụ:\nNguyễn Văn A\nBài viết hay quá\n· Reply · Share · Like · 1h\n\nTrần Thị B\nLike like share\n· Reply · Share · Like · 2h'
+          }
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+        />
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            onClick={handleParsePaste}
+            disabled={!pasteArea.trim()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ClipboardPaste className="h-4 w-4" /> Tự động trích xuất tài khoản
+          </button>
+          {pasteInfo && (
+            <span className="text-xs text-blue-600 font-medium">{pasteInfo}</span>
+          )}
+        </div>
+      </div>
+
       {/* Interaction samples */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-gray-900">Mẫu tài khoản tương tác</h3>
             <p className="mt-0.5 text-xs text-gray-500">
-              Thêm vài tài khoản comment/react để phân tích nick ảo
+              Tài khoản đã được trích xuất tự động. Bấm "Thêm" để nhập thêm hoặc chỉnh sửa từng dòng.
             </p>
           </div>
           <button
