@@ -168,9 +168,13 @@ export function PostMonitoring() {
   async function handleUpdateMetrics(post: MonitoredPost, e: React.FormEvent) {
     e.preventDefault();
     setUpdatingId(post.id);
-    const r = parseInt(updateReactions) || post.current_reactions;
-    const c = parseInt(updateComments) || post.current_comments;
-    const s = parseInt(updateShares) || post.current_shares;
+    const r = parseInt(updateReactions);
+    const c = parseInt(updateComments);
+    const s = parseInt(updateShares);
+    if (isNaN(r) || isNaN(c) || isNaN(s) || r < 0 || c < 0 || s < 0) {
+      setUpdatingId(null);
+      return;
+    }
 
     await updateMonitoredPostMetrics(post.id, post, {
       totalReactions: r,
@@ -197,6 +201,18 @@ export function PostMonitoring() {
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
     return d.toLocaleString('vi-VN');
+  };
+
+  const formatFullTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString('vi-VN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   };
 
   const deltaBadge = (delta: number, icon: React.ReactNode) => {
@@ -454,35 +470,41 @@ export function PostMonitoring() {
                       onSubmit={(e) => handleUpdateMetrics(post, e)}
                       className="rounded-lg border border-blue-200 bg-blue-50/50 p-3"
                     >
-                      <p className="mb-2 text-xs font-medium text-gray-600">Nhập số liệu mới để ghi nhận biến động:</p>
+                      <p className="mb-2 text-xs font-medium text-gray-600">Nhập số liệu mới (bắt buộc đủ 3 trường) để ghi nhận biến động:</p>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="mb-0.5 block text-xs text-gray-500 flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> React</label>
+                          <label className="mb-0.5 block text-xs text-gray-500 flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> React *</label>
                           <input
                             type="number"
                             min={0}
+                            required
                             value={updateReactions}
                             onChange={(e) => setUpdateReactions(e.target.value)}
+                            placeholder="Bắt buộc"
                             className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-100 outline-none"
                           />
                         </div>
                         <div>
-                          <label className="mb-0.5 block text-xs text-gray-500 flex items-center gap-1"><MessageSquare className="h-3 w-3" /> Cmt</label>
+                          <label className="mb-0.5 block text-xs text-gray-500 flex items-center gap-1"><MessageSquare className="h-3 w-3" /> Cmt *</label>
                           <input
                             type="number"
                             min={0}
+                            required
                             value={updateComments}
                             onChange={(e) => setUpdateComments(e.target.value)}
+                            placeholder="Bắt buộc"
                             className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-100 outline-none"
                           />
                         </div>
                         <div>
-                          <label className="mb-0.5 block text-xs text-gray-500 flex items-center gap-1"><Share2 className="h-3 w-3" /> Share</label>
+                          <label className="mb-0.5 block text-xs text-gray-500 flex items-center gap-1"><Share2 className="h-3 w-3" /> Share *</label>
                           <input
                             type="number"
                             min={0}
+                            required
                             value={updateShares}
                             onChange={(e) => setUpdateShares(e.target.value)}
+                            placeholder="Bắt buộc"
                             className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-100 outline-none"
                           />
                         </div>
@@ -528,7 +550,10 @@ export function PostMonitoring() {
                           <tbody className="divide-y divide-gray-100 bg-white">
                             {snapshots.map((snap) => (
                               <tr key={snap.id} className="hover:bg-gray-50/50">
-                                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatTime(snap.created_at)}</td>
+                                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                                  <div>{formatTime(snap.created_at)}</div>
+                                  <div className="text-[10px] text-gray-400">{formatFullTime(snap.created_at)}</div>
+                                </td>
                                 <td className="px-3 py-2 text-center text-gray-700">{snap.snapshot_reactions.toLocaleString('vi-VN')}</td>
                                 <td className="px-3 py-2 text-center">{deltaBadge(snap.delta_reactions, <ThumbsUp className="h-3 w-3" />)}</td>
                                 <td className="px-3 py-2 text-center text-gray-700">{snap.snapshot_comments.toLocaleString('vi-VN')}</td>
