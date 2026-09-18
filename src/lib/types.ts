@@ -27,7 +27,12 @@ export type FlagReason =
   | 'bot_name'
   | 'repeated_content'
   | 'link_spam'
-  | 'scripted_pattern';
+  | 'scripted_pattern'
+  | 'numbered_name'
+  | 'no_lastname'
+  | 'foreign_name'
+  | 'emoji_name'
+  | 'keyword_name';
 
 export type ThreatCategory = 'buff' | 'tool' | 'hack' | 'clean';
 

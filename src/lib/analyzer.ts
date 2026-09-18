@@ -33,6 +33,51 @@ const botNamePatterns = [
   /^(guest|visitor|unknown)/i,
 ];
 
+// Names that look auto-generated: numbered, single word, emoji, keyword spam
+const numberedNamePatterns = [
+  /\d{3,}$/, // ends with 3+ digits
+  /\d{5,}/, // 5+ digits anywhere
+  /^\d+/, // starts with digits
+  /(?:nguyen|tran|le|pham|huynh|phan|vu|vo|dang|bui|do|ho|ngo)\d+/i, // vietnamese surname + digits
+];
+
+const emojiNamePattern = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/u;
+
+// Names that are just one word (no last name) — common for fake accounts
+function hasNoLastName(name: string): boolean {
+  const words = name.trim().split(/\s+/);
+  return words.length === 1 && name.trim().length <= 12 && /[a-zà-ỹ]/i.test(name);
+}
+
+// Foreign-language names (Chinese, Thai, Arabic, etc.) in a Vietnamese context
+const foreignNamePatterns = [
+  /[\u4e00-\u9fff]/, // Chinese characters
+  /[\u0e00-\u0e7f]/, // Thai
+  /[\u0600-\u06ff]/, // Arabic
+  /[\u0900-\u097f]/, // Devanagari
+];
+
+// Names that contain marketing/farm keywords
+const keywordNamePatterns = [
+  /^(seo|marketing|farm|buff|sub|follow|like|share|vay|vonn|kiemtien|casino)/i,
+  /(fpt|shop|store|sale|deal|gaia|garena|free\s?fire|pubg)/i,
+];
+
+// Vietnamese surnames for sanity checking
+const vietnameseSurnames = [
+  'nguyen', 'tran', 'le', 'pham', 'huynh', 'phan', 'vu', 'vo',
+  'dang', 'bui', 'do', 'ho', 'ngo', 'duong', 'ly', 'lam', 'dinh',
+  'vuong', 'mai', 'trinh', 'ha', 'cao', 'trieu', 'duong', 'hoang',
+];
+
+function looksLikeVietnameseName(name: string): boolean {
+  const firstWord = name.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  return vietnameseSurnames.includes(firstWord);
+}
+
+// Heuristic: name with many special chars or symbols
+const junkNamePattern = /[_.\-]{3,}|[~`!@#$%^&*()+=|\\<>?{}]/;
+
 // Spam / scam / hack patterns in comments
 const scamPatterns = [
   /\b(?:vay|vonn|vayvon|mcc|chuyenkhoan|nhactien|kiemtien|casino|daigia)\b/i,
@@ -63,16 +108,21 @@ function classifyThreat(reasons: { type: FlagReason }[]): ThreatCategory {
   if (
     reasonTypes.has('link_spam') ||
     reasonTypes.has('scripted_pattern') ||
-    reasonTypes.has('spam_pattern')
+    reasonTypes.has('spam_pattern') ||
+    reasonTypes.has('keyword_name')
   ) {
     return 'hack';
   }
 
-  // TOOL: bot names, duplicate names, generic auto-comments
+  // TOOL: bot names, duplicate names, generic auto-comments, numbered names
   if (
     reasonTypes.has('bot_name') ||
     reasonTypes.has('duplicate_name') ||
-    reasonTypes.has('repeated_content')
+    reasonTypes.has('repeated_content') ||
+    reasonTypes.has('numbered_name') ||
+    reasonTypes.has('emoji_name') ||
+    reasonTypes.has('no_lastname') ||
+    reasonTypes.has('foreign_name')
   ) {
     return 'tool';
   }
@@ -167,6 +217,63 @@ function flagInteractions(interactions: InteractionEntry[]): {
         });
         break;
       }
+    }
+
+    // Numbered name (e.g. "Nguyen12345", "tran2024")
+    for (const pattern of numberedNamePatterns) {
+      if (pattern.test(it.profileName)) {
+        reasons.push({
+          type: 'numbered_name',
+          label: `Tên chứa số ("${it.profileName}") — tài khoản thật hiếm khi có số dài trong tên`,
+        });
+        break;
+      }
+    }
+
+    // Emoji in name
+    if (emojiNamePattern.test(it.profileName)) {
+      reasons.push({
+        type: 'emoji_name',
+        label: `Tên chứa emoji/ký tự đặc biệt ("${it.profileName}") — dấu hiệu tài khoản ảo`,
+      });
+    }
+
+    // No last name (single word)
+    if (hasNoLastName(it.profileName)) {
+      reasons.push({
+        type: 'no_lastname',
+        label: `Tên chỉ có một từ ("${it.profileName}") — tài khoản thật thường có họ + tên`,
+      });
+    }
+
+    // Foreign script in name (Chinese/Thai/Arabic etc.)
+    for (const pattern of foreignNamePatterns) {
+      if (pattern.test(it.profileName)) {
+        reasons.push({
+          type: 'foreign_name',
+          label: `Tên chứa ký tự nước ngoài ("${it.profileName}") — có thể là tài khoản clone nước khác`,
+        });
+        break;
+      }
+    }
+
+    // Keyword / marketing name
+    for (const pattern of keywordNamePatterns) {
+      if (pattern.test(it.profileName)) {
+        reasons.push({
+          type: 'keyword_name',
+          label: `Tên chứa từ khóa marketing/farm ("${it.profileName}") — tài khoản trang trại/spam`,
+        });
+        break;
+      }
+    }
+
+    // Junk name with many special characters
+    if (junkNamePattern.test(it.profileName)) {
+      reasons.push({
+        type: 'bot_name',
+        label: `Tên chứa nhiều ký tự đặc biệt ("${it.profileName}") — không giống tên thật`,
+      });
     }
 
     // Track duplicates
@@ -285,6 +392,11 @@ function flagInteractions(interactions: InteractionEntry[]): {
   let linkSpamCount = 0;
   let scriptedCount = 0;
   let repeatedContentCount = 0;
+  let numberedNameCount = 0;
+  let noLastNameCount = 0;
+  let foreignNameCount = 0;
+  let emojiNameCount = 0;
+  let keywordNameCount = 0;
 
   for (const f of flagged) {
     for (const r of f.reasons) {
@@ -298,6 +410,11 @@ function flagInteractions(interactions: InteractionEntry[]): {
       if (r.type === 'link_spam') linkSpamCount++;
       if (r.type === 'scripted_pattern') scriptedCount++;
       if (r.type === 'repeated_content') repeatedContentCount++;
+      if (r.type === 'numbered_name') numberedNameCount++;
+      if (r.type === 'no_lastname') noLastNameCount++;
+      if (r.type === 'foreign_name') foreignNameCount++;
+      if (r.type === 'emoji_name') emojiNameCount++;
+      if (r.type === 'keyword_name') keywordNameCount++;
     }
   }
 
@@ -383,6 +500,46 @@ function flagInteractions(interactions: InteractionEntry[]): {
       type: 'repeated_content',
       description: `${repeatedContentCount} comment trùng nội dung — tool copy-paste hàng loạt.`,
       severity: repeatedContentCount >= 5 ? 'danger' : 'warning',
+    });
+  }
+
+  if (numberedNameCount > 0) {
+    signals.push({
+      type: 'numbered_names',
+      description: `${numberedNameCount} tài khoản có tên chứa số — tài khoản thật hiếm khi có số dài trong tên.`,
+      severity: numberedNameCount >= 3 ? 'danger' : 'warning',
+    });
+  }
+
+  if (noLastNameCount > 0) {
+    signals.push({
+      type: 'no_lastname',
+      description: `${noLastNameCount} tài khoản chỉ có tên không có họ — dấu hiệu tạo nhanh.`,
+      severity: noLastNameCount >= 5 ? 'danger' : 'warning',
+    });
+  }
+
+  if (foreignNameCount > 0) {
+    signals.push({
+      type: 'foreign_names',
+      description: `${foreignNameCount} tài khoản có tên bằng ký tự nước ngoài — có thể là tài khoản clone.`,
+      severity: foreignNameCount >= 3 ? 'danger' : 'warning',
+    });
+  }
+
+  if (emojiNameCount > 0) {
+    signals.push({
+      type: 'emoji_names',
+      description: `${emojiNameCount} tài khoản có emoji/ký tự đặc biệt trong tên — dấu hiệu tài khoản ảo.`,
+      severity: emojiNameCount >= 3 ? 'danger' : 'warning',
+    });
+  }
+
+  if (keywordNameCount > 0) {
+    signals.push({
+      type: 'keyword_names',
+      description: `${keywordNameCount} tài khoản có tên chứa từ khóa marketing/farm — tài khoản trang trại.`,
+      severity: 'danger',
     });
   }
 

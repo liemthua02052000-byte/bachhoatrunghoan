@@ -21,6 +21,10 @@ import {
   ShieldAlert,
   ShieldX,
   CheckCircle2,
+  Hash,
+  Globe,
+  Tag,
+  Sparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -38,6 +42,11 @@ const reasonIcon: Record<FlagReason, React.ReactNode> = {
   repeated_content: <Repeat className="h-4 w-4 text-purple-500" />,
   link_spam: <Link2Off className="h-4 w-4 text-red-600" />,
   scripted_pattern: <Terminal className="h-4 w-4 text-red-600" />,
+  numbered_name: <Hash className="h-4 w-4 text-orange-500" />,
+  no_lastname: <UserX className="h-4 w-4 text-amber-500" />,
+  foreign_name: <Globe className="h-4 w-4 text-orange-600" />,
+  emoji_name: <Sparkles className="h-4 w-4 text-purple-400" />,
+  keyword_name: <Tag className="h-4 w-4 text-red-500" />,
 };
 
 const interactionIcon = {
