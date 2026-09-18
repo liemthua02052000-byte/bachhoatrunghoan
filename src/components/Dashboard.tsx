@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import type { ScanReport } from '@/lib/types';
+import type { ScanReport, ScanResult as ScanResultType, ScanInput } from '@/lib/types';
 import { ScanForm } from './ScanForm';
 import { ScanHistory } from './ScanHistory';
 import { ScanResult } from './ScanResult';
 import { RiskBadge } from './RiskBadge';
+import { getScanWithInteractions } from '@/lib/scan-service';
 import {
   ShieldCheck,
   ScanLine,
   History,
   HelpCircle,
   X,
+  Loader2,
 } from 'lucide-react';
 
 type Tab = 'scan' | 'history' | 'guide';
@@ -18,13 +20,33 @@ export function Dashboard() {
   const [tab, setTab] = useState<Tab>('scan');
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedReport, setSelectedReport] = useState<ScanReport | null>(null);
+  const [detailResult, setDetailResult] = useState<ScanResultType | null>(null);
+  const [detailInput, setDetailInput] = useState<{ totalReactions: number; totalComments: number; totalShares: number; reactionBreakdown: Record<string, number>; postContent?: string; postDate?: string } | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   function handleSaved() {
     setRefreshKey((k) => k + 1);
   }
 
-  function handleSelectReport(report: ScanReport) {
+  async function handleSelectReport(report: ScanReport) {
     setSelectedReport(report);
+    setDetailResult(null);
+    setDetailInput(null);
+    setDetailLoading(true);
+
+    const loaded = await getScanWithInteractions(report.id);
+    if (loaded) {
+      setDetailResult(loaded.result);
+      setDetailInput({
+        totalReactions: loaded.input.totalReactions,
+        totalComments: loaded.input.totalComments,
+        totalShares: loaded.input.totalShares,
+        reactionBreakdown: loaded.input.reactionBreakdown as Record<string, number>,
+        postContent: loaded.input.postContent,
+        postDate: loaded.input.postDate,
+      });
+    }
+    setDetailLoading(false);
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -124,26 +146,38 @@ export function Dashboard() {
               <div className="mb-4">
                 <RiskBadge score={selectedReport.risk_score} level={selectedReport.risk_level} size="lg" />
               </div>
-              <ScanResult
-                result={{
-                  riskScore: selectedReport.risk_score,
-                  riskLevel: selectedReport.risk_level,
-                  detectedSignals: selectedReport.detected_signals ?? [],
-                  engagementRatio: Number(selectedReport.engagement_ratio),
-                  suspiciousInteractionCount: 0,
-                  totalInteractionCount: 0,
-                  flaggedAccounts: [],
-                  allAccounts: [],
-                }}
-                input={{
-                  totalReactions: selectedReport.total_reactions,
-                  totalComments: selectedReport.total_comments,
-                  totalShares: selectedReport.total_shares,
-                  reactionBreakdown: selectedReport.reaction_breakdown ?? {},
-                  postContent: selectedReport.post_content ?? undefined,
-                  postDate: selectedReport.post_date ?? undefined,
-                }}
-              />
+              {detailLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                  <span className="ml-2 text-sm text-gray-500">Đang tải dữ liệu...</span>
+                </div>
+              ) : detailResult && detailInput ? (
+                <ScanResult
+                  result={detailResult}
+                  input={detailInput}
+                />
+              ) : (
+                <ScanResult
+                  result={{
+                    riskScore: selectedReport.risk_score,
+                    riskLevel: selectedReport.risk_level,
+                    detectedSignals: selectedReport.detected_signals ?? [],
+                    engagementRatio: Number(selectedReport.engagement_ratio),
+                    suspiciousInteractionCount: 0,
+                    totalInteractionCount: 0,
+                    flaggedAccounts: [],
+                    allAccounts: [],
+                  }}
+                  input={{
+                    totalReactions: selectedReport.total_reactions,
+                    totalComments: selectedReport.total_comments,
+                    totalShares: selectedReport.total_shares,
+                    reactionBreakdown: selectedReport.reaction_breakdown ?? {},
+                    postContent: selectedReport.post_content ?? undefined,
+                    postDate: selectedReport.post_date ?? undefined,
+                  }}
+                />
+              )}
             </div>
           </div>
         )}

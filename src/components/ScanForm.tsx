@@ -93,8 +93,12 @@ export function ScanForm({ onSaved }: Props) {
     const analysisResult = analyzePost(input);
     setResult(analysisResult);
 
-    await saveScanReport(input, analysisResult);
-    onSaved();
+    try {
+      await saveScanReport(input, analysisResult);
+      onSaved();
+    } catch {
+      // Result still shows even if saving to history fails
+    }
     setAnalyzing(false);
   }
 

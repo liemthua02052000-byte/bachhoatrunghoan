@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { ScanInput, ScanResult } from './types';
+import type { ScanInput, ScanResult, ScanReport, InteractionEntry, InteractionType } from './types';
 import { analyzePost } from './analyzer';
 
 export async function saveScanReport(
@@ -54,6 +54,55 @@ export async function getScanHistory(limit = 20) {
 
   if (error) return [];
   return data;
+}
+
+export async function getScanWithInteractions(scanId: string) {
+  const [reportRes, interactionsRes] = await Promise.all([
+    supabase.from('scan_reports').select('*').eq('id', scanId).single(),
+    supabase
+      .from('interactions_log')
+      .select('*')
+      .eq('scan_id', scanId)
+      .order('detected_at', { ascending: true }),
+  ]);
+
+  if (reportRes.error || !reportRes.data) return null;
+
+  const report = reportRes.data as ScanReport;
+  const rawInteractions = (interactionsRes.data ?? []) as Array<{
+    interaction_type: string;
+    profile_name: string | null;
+    profile_url: string | null;
+    is_empty_profile: boolean;
+    is_new_account: boolean;
+    has_profile_photo: boolean;
+    content: string | null;
+  }>;
+
+  const interactions: InteractionEntry[] = rawInteractions.map((r) => ({
+    interactionType: r.interaction_type as InteractionType,
+    profileName: r.profile_name ?? '',
+    profileUrl: r.profile_url ?? undefined,
+    isEmptyProfile: r.is_empty_profile,
+    isNewAccount: r.is_new_account,
+    hasProfilePhoto: r.has_profile_photo,
+    content: r.content ?? undefined,
+  }));
+
+  const input: ScanInput = {
+    postUrl: report.post_url,
+    postContent: report.post_content ?? undefined,
+    postDate: report.post_date ?? undefined,
+    totalReactions: report.total_reactions,
+    totalComments: report.total_comments,
+    totalShares: report.total_shares,
+    reactionBreakdown: report.reaction_breakdown ?? {},
+    interactions,
+  };
+
+  const analysisResult = analyzePost(input);
+
+  return { report, result: analysisResult, input };
 }
 
 export async function deleteScanReport(id: string): Promise<boolean> {
