@@ -77,6 +77,12 @@ export function Dashboard() {
           >
             Chính sách Facebook
           </a>
+          <a
+            href="#admin"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" /> Quản trị
+          </a>
         </div>
       </header>
 
