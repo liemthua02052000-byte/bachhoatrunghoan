@@ -133,6 +133,7 @@ export function Dashboard() {
                   suspiciousInteractionCount: 0,
                   totalInteractionCount: 0,
                   flaggedAccounts: [],
+                  allAccounts: [],
                 }}
                 input={{
                   totalReactions: selectedReport.total_reactions,

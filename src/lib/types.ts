@@ -29,7 +29,7 @@ export type FlagReason =
   | 'link_spam'
   | 'scripted_pattern';
 
-export type ThreatCategory = 'buff' | 'tool' | 'hack';
+export type ThreatCategory = 'buff' | 'tool' | 'hack' | 'clean';
 
 export interface FlaggedAccount {
   index: number;
@@ -71,6 +71,7 @@ export interface ScanResult {
   suspiciousInteractionCount: number;
   totalInteractionCount: number;
   flaggedAccounts: FlaggedAccount[];
+  allAccounts: FlaggedAccount[];
 }
 
 export interface ScanReport {

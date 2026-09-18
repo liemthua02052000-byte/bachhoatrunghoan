@@ -190,18 +190,18 @@ function flagInteractions(interactions: InteractionEntry[]): {
     if (reasons.length >= 3) confidence = 'high';
     else if (reasons.length >= 2) confidence = 'medium';
 
-    if (reasons.length > 0) {
-      flagged.push({
-        index: idx,
-        profileName: it.profileName || '(không rõ tên)',
-        profileUrl: it.profileUrl,
-        interactionType: it.interactionType,
-        reasons,
-        content: it.content,
-        confidence,
-        threatCategory: classifyThreat(reasons),
-      });
-    }
+    const threatCategory = reasons.length > 0 ? classifyThreat(reasons) : 'clean';
+
+    flagged.push({
+      index: idx,
+      profileName: it.profileName || '(không rõ tên)',
+      profileUrl: it.profileUrl,
+      interactionType: it.interactionType,
+      reasons,
+      content: it.content,
+      confidence,
+      threatCategory,
+    });
   });
 
   // Mark duplicate names
@@ -266,9 +266,13 @@ function flagInteractions(interactions: InteractionEntry[]): {
     }
   }
 
-  // Sort: highest confidence first
-  const confidenceOrder = { high: 0, medium: 1, low: 2 };
-  flagged.sort((a, b) => confidenceOrder[a.confidence] - confidenceOrder[b.confidence]);
+  // Sort: highest confidence first, clean last
+  const confidenceOrder = { high: 0, medium: 1, low: 2, clean: 3 };
+  flagged.sort((a, b) => {
+    const catDiff = (a.threatCategory === 'clean' ? 1 : 0) - (b.threatCategory === 'clean' ? 1 : 0);
+    if (catDiff !== 0) return catDiff;
+    return confidenceOrder[a.confidence] - confidenceOrder[b.confidence];
+  });
 
   // Generate aggregate signals
   let emptyProfileCount = 0;
@@ -527,13 +531,17 @@ export function analyzePost(input: ScanInput): ScanResult {
 
   score = Math.min(Math.round(score), 100);
 
+  const allAccounts = interactionResult.flagged;
+  const flaggedOnly = allAccounts.filter((a) => a.threatCategory !== 'clean');
+
   return {
     riskScore: score,
     riskLevel: classifyRisk(score),
     detectedSignals: allSignals,
     engagementRatio: Math.round(engagementResult.ratio * 10) / 10,
-    suspiciousInteractionCount: flaggedCount,
+    suspiciousInteractionCount: flaggedOnly.length,
     totalInteractionCount: input.interactions.length,
-    flaggedAccounts: interactionResult.flagged,
+    flaggedAccounts: flaggedOnly,
+    allAccounts,
   };
 }

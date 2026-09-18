@@ -56,6 +56,7 @@ const confidenceConfig = {
   high: { label: 'Chắc chắn', bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', icon: <Skull className="h-3.5 w-3.5" /> },
   medium: { label: 'Nghi ngờ cao', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300', icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   low: { label: 'Đáng ngờ', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  clean: { label: 'Sạch', bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
 };
 
 type TabKey = 'all' | ThreatCategory;
@@ -100,11 +101,20 @@ const threatConfig: Record<ThreatCategory, {
     gradient: 'from-red-500 to-rose-600',
     description: 'Tài khoản phát tán link độc hại, scam, hack — comment chứa link ngoài, nội dung lừa đảo.',
   },
+  clean: {
+    label: 'Tài khoản sạch',
+    shortLabel: 'SẠCH',
+    icon: <CheckCircle2 className="h-4 w-4" />,
+    bg: 'bg-emerald-100',
+    text: 'text-emerald-700',
+    border: 'border-emerald-300',
+    gradient: 'from-emerald-500 to-teal-500',
+    description: 'Tài khoản không phát hiện dấu hiệu ảo — có vẻ là tương tác thật.',
+  },
 };
 
 export function FlaggedAccountsList({ accounts }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('all');
-
   if (accounts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 py-10 text-center">
@@ -123,6 +133,7 @@ export function FlaggedAccountsList({ accounts }: Props) {
     buff: accounts.filter((a) => a.threatCategory === 'buff').length,
     tool: accounts.filter((a) => a.threatCategory === 'tool').length,
     hack: accounts.filter((a) => a.threatCategory === 'hack').length,
+    clean: accounts.filter((a) => a.threatCategory === 'clean').length,
   };
 
   const tabs: { key: TabKey; label: string; count: number; icon?: React.ReactNode }[] = [
@@ -130,6 +141,7 @@ export function FlaggedAccountsList({ accounts }: Props) {
     { key: 'buff', label: threatConfig.buff.label, count: counts.buff, icon: threatConfig.buff.icon },
     { key: 'tool', label: threatConfig.tool.label, count: counts.tool, icon: threatConfig.tool.icon },
     { key: 'hack', label: threatConfig.hack.label, count: counts.hack, icon: threatConfig.hack.icon },
+    { key: 'clean', label: threatConfig.clean.label, count: counts.clean, icon: threatConfig.clean.icon },
   ];
 
   const filteredAccounts = activeTab === 'all'
@@ -147,13 +159,13 @@ export function FlaggedAccountsList({ accounts }: Props) {
         <div className="flex items-center gap-2 mb-3">
           <ShieldX className="h-5 w-5 text-red-600" />
           <h4 className="text-sm font-bold text-red-800">
-            Phát hiện {accounts.length} tài khoản nguy hiểm
+            Phát hiện {accounts.length - counts.clean} tài khoản nguy hiểm / {accounts.length} tổng
           </h4>
         </div>
 
         {/* Threat category summary */}
-        <div className="grid grid-cols-3 gap-3">
-          {(['buff', 'tool', 'hack'] as ThreatCategory[]).map((cat) => {
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(['buff', 'tool', 'hack', 'clean'] as ThreatCategory[]).map((cat) => {
             const cfg = threatConfig[cat];
             const count = counts[cat];
             if (count === 0) return null;
@@ -195,6 +207,7 @@ export function FlaggedAccountsList({ accounts }: Props) {
             tab.key === 'buff' ? 'text-orange-700 border-orange-400 bg-orange-50' :
             tab.key === 'tool' ? 'text-purple-700 border-purple-400 bg-purple-50' :
             tab.key === 'hack' ? 'text-red-700 border-red-400 bg-red-50' :
+            tab.key === 'clean' ? 'text-emerald-700 border-emerald-400 bg-emerald-50' :
             'text-gray-700 border-gray-300 bg-white';
           return (
             <button
@@ -290,15 +303,24 @@ export function FlaggedAccountsList({ accounts }: Props) {
 
               {/* Reasons */}
               <div className="mt-3 space-y-2">
-                <p className="text-xs font-semibold text-gray-700">
-                  Bằng chứng ({acc.reasons.length}):
-                </p>
-                {acc.reasons.map((reason, ri) => (
-                  <div key={ri} className="flex items-start gap-2 rounded-lg bg-gray-50/50 px-2 py-1.5">
-                    {reasonIcon[reason.type]}
-                    <p className="text-xs text-gray-600 leading-relaxed">{reason.label}</p>
-                  </div>
-                ))}
+                {acc.reasons.length > 0 ? (
+                  <>
+                    <p className="text-xs font-semibold text-gray-700">
+                      Bằng chứng ({acc.reasons.length}):
+                    </p>
+                    {acc.reasons.map((reason, ri) => (
+                      <div key={ri} className="flex items-start gap-2 rounded-lg bg-gray-50/50 px-2 py-1.5">
+                        {reasonIcon[reason.type]}
+                        <p className="text-xs text-gray-600 leading-relaxed">{reason.label}</p>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <p className="flex items-center gap-2 text-xs text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Không phát hiện dấu hiệu ảo — tài khoản có vẻ thật
+                  </p>
+                )}
               </div>
             </div>
           );

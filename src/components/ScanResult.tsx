@@ -29,6 +29,7 @@ interface Props {
     suspiciousInteractionCount: number;
     totalInteractionCount: number;
     flaggedAccounts: FlaggedAccount[];
+    allAccounts: FlaggedAccount[];
   };
   input: {
     totalReactions: number;
@@ -198,9 +199,9 @@ export function ScanResult({ result, input }: Props) {
       {result.totalInteractionCount > 0 && (
         <div>
           <h4 className="mb-3 text-base font-bold text-gray-900">
-            Danh sách tài khoản nghi ảo
+            Danh sách tài khoản tương tác
           </h4>
-          <FlaggedAccountsList accounts={result.flaggedAccounts} />
+          <FlaggedAccountsList accounts={result.allAccounts} />
         </div>
       )}
 
