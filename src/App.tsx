@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth, AuthProvider } from '@/lib/auth';
 import { Dashboard } from '@/components/Dashboard';
 import { AdminAuth } from '@/components/AdminAuth';
@@ -7,9 +8,19 @@ import { Loader2, ShieldCheck } from 'lucide-react';
 
 function AppContent() {
   const { user, profile, loading } = useAuth();
+  const [hashRoute, setHashRoute] = useState(
+    typeof window !== 'undefined' ? window.location.hash : ''
+  );
 
-  // Check URL hash for admin route
-  const isAdminRoute = typeof window !== 'undefined' && window.location.hash === '#admin';
+  useEffect(() => {
+    function onHashChange() {
+      setHashRoute(window.location.hash);
+    }
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const isAdminRoute = hashRoute === '#admin';
 
   if (loading) {
     return (
@@ -39,7 +50,7 @@ function AppContent() {
               Tài khoản của bạn không có quyền truy cập trang quản trị.
             </p>
             <button
-              onClick={() => window.location.hash = ''}
+              onClick={() => { window.location.hash = ''; setHashRoute(''); }}
               className="mt-6 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
             >
               Về trang chủ

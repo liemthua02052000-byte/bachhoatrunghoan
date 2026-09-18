@@ -165,18 +165,18 @@ export function AdminDashboard() {
   }, [tab]);
 
   async function approveUser(id: string) {
-    const { error } = await supabase
-      .from('admin_profiles')
-      .update({ is_approved: true })
-      .eq('id', id);
+    const { error } = await supabase.rpc('admin_update_user_approval', {
+      target_uid: id,
+      new_approved: true,
+    });
     if (!error) loadUsers();
   }
 
   async function rejectUser(id: string) {
-    const { error } = await supabase
-      .from('admin_profiles')
-      .update({ is_approved: false })
-      .eq('id', id);
+    const { error } = await supabase.rpc('admin_update_user_approval', {
+      target_uid: id,
+      new_approved: false,
+    });
     if (!error) loadUsers();
   }
 
