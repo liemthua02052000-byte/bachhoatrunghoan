@@ -22,6 +22,7 @@ import {
 import type { ScanResult as ScanResultType } from '@/lib/types';
 import { ScanResult } from './ScanResult';
 import { getScanWithInteractions } from '@/lib/scan-service';
+import { PostMonitoring } from './PostMonitoring';
 
 interface ScanRow {
   id: string;
@@ -46,7 +47,7 @@ interface PendingUser {
   created_at: string;
 }
 
-type AdminTab = 'overview' | 'history' | 'users';
+type AdminTab = 'overview' | 'history' | 'monitor' | 'users';
 
 export function AdminDashboard() {
   const { profile, signOut } = useAuth();
@@ -205,6 +206,7 @@ export function AdminDashboard() {
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Tổng quan', icon: <Activity className="h-4 w-4" /> },
     { id: 'history', label: 'Lịch sử kiểm tra', icon: <Clock className="h-4 w-4" /> },
+    { id: 'monitor', label: 'Theo dõi biến động', icon: <TrendingUp className="h-4 w-4" /> },
     { id: 'users', label: 'Tài khoản', icon: <Users className="h-4 w-4" /> },
   ];
 
@@ -443,6 +445,9 @@ export function AdminDashboard() {
             <p className="text-xs text-gray-400">Hiển thị {filteredScans.length} / {totalScans} lượt kiểm tra</p>
           </div>
         )}
+
+        {/* Monitor tab */}
+        {tab === 'monitor' && <PostMonitoring />}
 
         {/* Users tab */}
         {tab === 'users' && (
