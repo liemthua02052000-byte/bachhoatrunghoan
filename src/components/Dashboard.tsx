@@ -102,14 +102,42 @@ export function Dashboard() {
         {/* Content */}
         {tab === 'scan' && (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
-              <h2 className="mb-1 text-base font-semibold text-gray-900">
-                Kiểm tra bài viết Facebook có bị buff tương tác không
-              </h2>
-              <p className="text-sm leading-relaxed text-gray-600">
-                Nhập link bài viết và số liệu tương tác. Hệ thống sẽ phân tích các dấu hiệu
-                nick ảo, tỷ lệ react/comment bất thường, comment spam và cho điểm rủi ro.
-              </p>
+            {/* Hero banner with background image */}
+            <div className="relative overflow-hidden rounded-2xl shadow-xl">
+              <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                  backgroundImage:
+                    "url('https://images.pexels.com/photos/97077/pexels-photo-97077.jpeg?auto=compress&cs=tinysrgb&w=1200')",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-900/85 via-blue-800/75 to-cyan-800/65" />
+              <div className="relative px-6 py-10 sm:px-8 sm:py-14">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm ring-1 ring-white/25">
+                    <ShieldCheck className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-sm font-semibold tracking-wide text-blue-100 uppercase">FB Scan</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white sm:text-3xl leading-tight max-w-2xl">
+                  Kiểm tra bài viết Facebook có bị buff tương tác không
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-blue-100 max-w-xl">
+                  Nhập link bài viết và số liệu tương tác. Hệ thống sẽ phân tích các dấu hiệu
+                  nick ảo, tỷ lệ react/comment bất thường, comment spam và cho điểm rủi ro.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm ring-1 ring-white/20">
+                    <ScanLine className="h-3.5 w-3.5" /> Phát hiện Buff
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm ring-1 ring-white/20">
+                    <ScanLine className="h-3.5 w-3.5" /> Phát hiện Tool
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm ring-1 ring-white/20">
+                    <ScanLine className="h-3.5 w-3.5" /> Phát hiện Hack
+                  </span>
+                </div>
+              </div>
             </div>
             <ScanForm onSaved={handleSaved} />
           </div>
