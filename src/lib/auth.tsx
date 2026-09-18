@@ -28,21 +28,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchProfile(uid: string) {
+  async function fetchProfile(uid: string): Promise<AdminProfile | null> {
     const { data, error } = await supabase
       .rpc('get_my_admin_profile');
     if (error || !data || data.length === 0) {
       setProfile(null);
-      return;
+      return null;
     }
     const p = data[0];
-    setProfile({
+    const profileData: AdminProfile = {
       id: p.id,
       email: p.email,
       is_admin: p.is_admin,
       is_approved: p.is_approved,
       created_at: p.created_at,
-    });
+    };
+    setProfile(profileData);
+    return profileData;
   }
 
   useEffect(() => {
@@ -79,7 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
     if (data.user) {
-      await fetchProfile(data.user.id);
+      // The DB trigger creates the profile row asynchronously.
+      // Retry a few times in case the row isn't ready immediately.
+      for (let i = 0; i < 5; i++) {
+        const p = await fetchProfile(data.user.id);
+        if (p) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
     return { error: null };
   }
@@ -88,7 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
     if (data.user) {
-      await fetchProfile(data.user.id);
+      for (let i = 0; i < 5; i++) {
+        const p = await fetchProfile(data.user.id);
+        if (p) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
     return { error: null };
   }

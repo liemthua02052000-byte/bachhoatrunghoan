@@ -4,7 +4,7 @@ import { ShieldCheck, Loader2, Mail, Lock, UserPlus, LogIn } from 'lucide-react'
 
 export function AdminAuth() {
   const { signUp, signIn } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,7 +28,7 @@ export function AdminAuth() {
       if (err) {
         setError(err);
       } else {
-        setInfo('Đăng ký thành công! Tài khoản đầu tiên tự động trở thành quản trị viên. Các tài khoản sau cần được duyệt.');
+        setInfo('Đăng ký thành công! Đang tự động đăng nhập...');
       }
     } else {
       const { error: err } = await signIn(email.trim(), password);

@@ -48,8 +48,15 @@ function AppContent() {
     if (user && profile && profile.is_approved) {
       return <AdminDashboard />;
     }
-    // Fallback: show login if profile not loaded yet
-    return <AdminAuth />;
+    // User exists but profile not loaded yet — show loading
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-cyan-400" />
+          <p className="mt-3 text-sm text-blue-200">Đang tải thông tin tài khoản...</p>
+        </div>
+      </div>
+    );
   }
 
   return <Dashboard />;
