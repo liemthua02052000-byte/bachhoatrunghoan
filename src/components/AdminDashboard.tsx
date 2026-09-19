@@ -363,13 +363,15 @@ export function AdminDashboard() {
                 {scans.slice(0, 5).map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2.5"
+                    className="flex items-start gap-2.5 rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2.5 overflow-hidden sm:items-center sm:gap-3"
                   >
-                    {riskBadge(s.risk_level)}
-                    <span className="flex-1 truncate text-sm text-gray-700">
-                      {s.post_content || s.post_url}
-                    </span>
-                    <span className="text-xs text-gray-400">{formatTime(s.created_at)}</span>
+                    <div className="flex-shrink-0">{riskBadge(s.risk_level)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-sm text-gray-700">
+                        {s.post_content || s.post_url}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">{formatTime(s.created_at)}</span>
                   </div>
                 ))}
                 {scans.length === 0 && (
@@ -441,7 +443,7 @@ export function AdminDashboard() {
                 <p className="py-12 text-center text-sm text-gray-400">Không có lượt kiểm tra nào.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[700px]">
                     <thead className="bg-gray-50 text-xs text-gray-500">
                       <tr>
                         <th className="px-4 py-3 text-left font-medium">Mức rủi ro</th>
@@ -515,7 +517,7 @@ export function AdminDashboard() {
                 <p className="py-8 text-center text-sm text-gray-400">Chưa có tài khoản nào.</p>
               ) : (
                 <div className="overflow-x-auto rounded-lg border border-gray-200">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[640px]">
                     <thead className="bg-gray-50 text-xs text-gray-500">
                       <tr>
                         <th className="px-4 py-3 text-left font-medium">Email</th>
@@ -585,24 +587,24 @@ export function AdminDashboard() {
       {/* Detail modal */}
       {selectedScan && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 backdrop-blur-sm sm:p-4"
           onClick={() => setSelectedScan(null)}
         >
           <div
-            className="my-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"
+            className="my-4 w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl sm:my-8 sm:p-6 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900">Chi tiết lượt kiểm tra</h3>
               <button
                 onClick={() => setSelectedScan(null)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 flex-shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="mb-4 rounded-lg bg-gray-50 px-4 py-2 text-xs text-gray-500">
-              <p className="font-medium text-gray-700">{selectedScan.post_url}</p>
+            <div className="mb-4 rounded-lg bg-gray-50 px-4 py-2 text-xs text-gray-500 overflow-hidden">
+              <p className="font-medium text-gray-700 break-all">{selectedScan.post_url}</p>
               <p className="mt-0.5">Kiểm tra lúc: {new Date(selectedScan.created_at).toLocaleString('vi-VN')}</p>
             </div>
             {detailLoading ? (
@@ -624,16 +626,16 @@ export function AdminDashboard() {
       {/* User detail modal */}
       {selectedUser && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 backdrop-blur-sm sm:p-4"
           onClick={() => setSelectedUser(null)}
         >
           <div
-            className="my-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"
+            className="my-4 w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl sm:my-8 sm:p-6 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">{selectedUser.email}</h3>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 truncate">{selectedUser.email}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Đăng ký: {new Date(selectedUser.created_at).toLocaleString('vi-VN')}
                   {' · '}{selectedUser.scan_count ?? 0} lượt kiểm tra
@@ -641,7 +643,7 @@ export function AdminDashboard() {
               </div>
               <button
                 onClick={() => setSelectedUser(null)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 flex-shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -662,10 +664,10 @@ export function AdminDashboard() {
                 {userScans.map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-4 py-3"
+                    className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-3 sm:px-4 overflow-hidden"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         {riskBadge(s.risk_level)}
                         <span className="text-xs text-gray-400">
                           {new Date(s.created_at).toLocaleDateString('vi-VN', {
@@ -679,7 +681,7 @@ export function AdminDashboard() {
                       <p className="truncate text-sm text-gray-700">
                         {s.post_content || 'Không có nội dung'}
                       </p>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                         <span>{s.total_reactions.toLocaleString('vi-VN')} react</span>
                         <span>{s.total_comments.toLocaleString('vi-VN')} cmt</span>
                         <span>{s.total_shares.toLocaleString('vi-VN')} share</span>

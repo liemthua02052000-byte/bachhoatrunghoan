@@ -388,10 +388,10 @@ export function PostMonitoring() {
             <div key={post.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
               {/* Post header */}
               <div
-                className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors"
+                className="flex cursor-pointer items-start gap-2.5 px-4 py-3 hover:bg-gray-50/50 transition-colors sm:items-center sm:gap-3"
                 onClick={() => handleExpand(post)}
               >
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${
                   post.status === 'active' ? 'bg-emerald-100' : 'bg-gray-100'
                 }`}>
                   {post.status === 'active' ? (
@@ -405,8 +405,14 @@ export function PostMonitoring() {
                     {post.post_content || post.post_url}
                   </p>
                   <p className="truncate text-xs text-gray-400">{post.post_url}</p>
+                  {/* Mobile metrics */}
+                  <div className="mt-1 flex items-center gap-3 text-xs text-gray-500 sm:hidden">
+                    <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3 text-blue-500" />{post.current_reactions.toLocaleString('vi-VN')}</span>
+                    <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3 text-green-500" />{post.current_comments.toLocaleString('vi-VN')}</span>
+                    <span className="flex items-center gap-1"><Share2 className="h-3 w-3 text-purple-500" />{post.current_shares.toLocaleString('vi-VN')}</span>
+                  </div>
                 </div>
-                {/* Current metrics */}
+                {/* Current metrics - desktop only */}
                 <div className="hidden sm:flex items-center gap-4 text-xs">
                   <span className="flex items-center gap-1 text-gray-600">
                     <ThumbsUp className="h-3.5 w-3.5 text-blue-500" />
@@ -421,11 +427,11 @@ export function PostMonitoring() {
                     {post.current_shares.toLocaleString('vi-VN')}
                   </span>
                 </div>
-                <span className="text-xs text-gray-400">{formatTime(post.last_checked_at)}</span>
+                <span className="hidden sm:block text-xs text-gray-400 whitespace-nowrap">{formatTime(post.last_checked_at)}</span>
                 {expandedPost === post.id ? (
-                  <ChevronUp className="h-4 w-4 text-gray-400" />
+                  <ChevronUp className="h-4 w-4 flex-shrink-0 text-gray-400" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                  <ChevronDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
                 )}
               </div>
 
@@ -533,7 +539,7 @@ export function PostMonitoring() {
                       <p className="py-4 text-center text-xs text-gray-400">Chưa có bản ghi biến động nào.</p>
                     ) : (
                       <div className="overflow-x-auto rounded-lg border border-gray-200">
-                        <table className="w-full text-xs">
+                        <table className="w-full text-xs min-w-[640px]">
                           <thead className="bg-gray-100 text-gray-500">
                             <tr>
                               <th className="px-3 py-2 text-left font-medium">Thời gian</th>
