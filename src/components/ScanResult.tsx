@@ -397,8 +397,8 @@ function FakeEstimateCard({ estimate }: { estimate: FakeEstimate }) {
       </div>
 
       {/* Method explanation */}
-      <div className="mt-4 rounded-lg bg-gray-50 px-3 py-2">
-        <p className="text-xs text-gray-500 leading-relaxed">
+      <div className="mt-4 rounded-lg bg-gray-50 px-3 py-2 overflow-hidden">
+        <p className="text-xs text-gray-500 leading-relaxed break-words">
           <span className="font-semibold">Cách tính: </span>{estimate.method}
         </p>
       </div>
@@ -512,7 +512,7 @@ function VoteScoreCard({ voteScore }: { voteScore: VoteScore }) {
           <p className="text-lg font-bold text-gray-400 line-through">
             {(
               (voteScore.realReactions + voteScore.fakeReactions) * 1 +
-              (voteScore.realComments + voteScore.fakeComments) * 1.5 +
+              (voteScore.realComments + voteScore.fakeComments) * 2 +
               (voteScore.realShares + voteScore.fakeShares) * 5
             ).toLocaleString('vi-VN', { maximumFractionDigits: 0 })}
           </p>
@@ -550,8 +550,8 @@ function VoteScoreCard({ voteScore }: { voteScore: VoteScore }) {
       </div>
 
       {/* Formula */}
-      <div className="rounded-lg bg-gray-50 px-3 py-2">
-        <p className="text-xs text-gray-500 leading-relaxed">
+      <div className="rounded-lg bg-gray-50 px-3 py-2 overflow-hidden">
+        <p className="text-xs text-gray-500 leading-relaxed break-words">
           <span className="font-semibold">Công thức: </span>{voteScore.formula}
         </p>
       </div>

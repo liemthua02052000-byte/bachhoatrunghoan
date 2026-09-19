@@ -167,11 +167,11 @@ export function Dashboard() {
         {/* Report detail modal */}
         {selectedReport && (
           <div
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 backdrop-blur-sm sm:p-4"
             onClick={() => setSelectedReport(null)}
           >
             <div
-              className="my-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"
+              className="my-4 w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl sm:my-8 sm:p-6 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">

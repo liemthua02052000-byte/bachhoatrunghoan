@@ -260,20 +260,20 @@ export function FlaggedAccountsList({ accounts }: Props) {
           return (
             <div
               key={acc.index}
-              className={`rounded-xl border-2 ${conf.border} bg-white p-4 transition-all hover:shadow-md`}
+              className={`rounded-xl border-2 ${conf.border} bg-white p-4 transition-all hover:shadow-md overflow-hidden`}
             >
               {/* Header */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${threat.gradient} text-white shadow-sm`}>
+              <div className="flex items-start justify-between gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 min-w-0 sm:gap-3">
+                  <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${threat.gradient} text-white shadow-sm sm:h-10 sm:w-10`}>
                     {threat.icon}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 overflow-hidden">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="truncate text-sm font-bold text-gray-900">
+                      <span className="truncate text-sm font-bold text-gray-900 max-w-[140px] sm:max-w-none">
                         #{idx + 1} {acc.profileName}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 flex-shrink-0">
                         {interactionIcon[acc.interactionType]}
                         {interactionLabel[acc.interactionType]}
                       </span>
@@ -283,19 +283,19 @@ export function FlaggedAccountsList({ accounts }: Props) {
                         href={acc.profileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700"
+                        className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 break-all line-clamp-1"
                       >
-                        Xem trang <ExternalLink className="h-3 w-3" />
+                        Xem trang <ExternalLink className="h-3 w-3 flex-shrink-0" />
                       </a>
                     )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                  <span className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${threat.gradient} px-3 py-1 text-xs font-bold text-white shadow-sm`}>
+                  <span className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${threat.gradient} px-2.5 py-1 text-xs font-bold text-white shadow-sm sm:px-3`}>
                     {threat.icon}
                     {threat.shortLabel}
                   </span>
-                  <span className={`inline-flex items-center gap-1 rounded-full ${conf.bg} ${conf.text} px-2.5 py-0.5 text-xs font-medium`}>
+                  <span className={`inline-flex items-center gap-1 rounded-full ${conf.bg} ${conf.text} px-2 py-0.5 text-xs font-medium`}>
                     {conf.icon}
                     {conf.label}
                   </span>
@@ -304,9 +304,9 @@ export function FlaggedAccountsList({ accounts }: Props) {
 
               {/* Comment content if any */}
               {acc.content && acc.content.trim() && (
-                <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2">
+                <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 overflow-hidden">
                   <p className="text-xs text-gray-500 mb-0.5">Nội dung:</p>
-                  <p className="text-sm text-gray-800 italic">"{acc.content.trim()}"</p>
+                  <p className="text-sm text-gray-800 italic break-words">"{acc.content.trim()}"</p>
                 </div>
               )}
 
