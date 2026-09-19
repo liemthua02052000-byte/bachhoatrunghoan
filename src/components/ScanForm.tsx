@@ -117,7 +117,27 @@ export function ScanForm({ onSaved }: Props) {
       return;
     }
 
-    const hasNamedInteraction = interactions.some(
+    // If there's pending paste content, extract it first so we use the latest data
+    let workingInteractions = interactions;
+    if (pasteArea.trim()) {
+      const parsed = parseFacebookComments(pasteArea);
+      if (parsed.length > 0) {
+        const newInteractions = parsedToInteractions(parsed);
+        const existingNames = new Set(
+          interactions.filter((it) => it.profileName.trim()).map((it) => it.profileName.trim().toLowerCase())
+        );
+        const toAdd = newInteractions.filter((it) => !existingNames.has(it.profileName.trim().toLowerCase()));
+        workingInteractions = [
+          ...interactions.filter((it) => it.profileName.trim().length > 0),
+          ...toAdd,
+        ];
+        setInteractions(workingInteractions);
+        setPasteInfo(`Đã trích xuất ${toAdd.length} tài khoản từ nội dung dán. Tổng cộng ${workingInteractions.length} tài khoản.`);
+        setPasteArea('');
+      }
+    }
+
+    const hasNamedInteraction = workingInteractions.some(
       (it) => it.profileName.trim().length > 0
     );
     const hasEngagementData =
@@ -132,7 +152,7 @@ export function ScanForm({ onSaved }: Props) {
 
     setAnalyzing(true);
 
-    const validInteractions = interactions.filter(
+    const validInteractions = workingInteractions.filter(
       (it) => it.profileName.trim().length > 0
     );
 
