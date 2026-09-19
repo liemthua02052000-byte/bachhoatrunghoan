@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { DetectedSignal, FlaggedAccount, FakeEstimate } from '@/lib/types';
+import type { DetectedSignal, FlaggedAccount, FakeEstimate, VoteScore } from '@/lib/types';
 import { RiskGauge } from './RiskBadge';
 import { FlaggedAccountsList } from './FlaggedAccountsList';
 import {
@@ -22,6 +22,10 @@ import {
   Terminal,
   CheckCircle2,
   Sparkles,
+  Award,
+  ThumbsUp,
+  MessageSquare,
+  Share2,
 } from 'lucide-react';
 
 interface Props {
@@ -35,6 +39,7 @@ interface Props {
     flaggedAccounts: FlaggedAccount[];
     allAccounts: FlaggedAccount[];
     fakeEstimate: FakeEstimate;
+    voteScore?: VoteScore;
   };
   input: {
     totalReactions: number;
@@ -179,6 +184,11 @@ export function ScanResult({ result, input }: Props) {
       {/* Fake account estimate */}
       {result.fakeEstimate && result.fakeEstimate.total > 0 && (
         <FakeEstimateCard estimate={result.fakeEstimate} />
+      )}
+
+      {/* Vote score */}
+      {result.voteScore && result.voteScore.totalVotes > 0 && (
+        <VoteScoreCard voteScore={result.voteScore} />
       )}
 
       {/* Interaction analysis */}
@@ -443,6 +453,111 @@ function TypeBreakdownRow({
       <p className="mt-1 text-xs text-gray-400">
         {fakePct.toFixed(0)}% ảo · {realPct.toFixed(0)}% thật
       </p>
+    </div>
+  );
+}
+
+function VoteScoreCard({ voteScore }: { voteScore: VoteScore }) {
+  const voteRows = [
+    {
+      icon: <ThumbsUp className="h-4 w-4 text-blue-600" />,
+      label: 'React thật',
+      count: voteScore.realReactions,
+      multiplier: 'x1',
+      votes: voteScore.reactVotes,
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+    },
+    {
+      icon: <MessageSquare className="h-4 w-4 text-green-600" />,
+      label: 'Cmt khen (x2) + Cmt thường (x1)',
+      count: voteScore.realComments,
+      multiplier: 'x1-2',
+      votes: voteScore.commentVotes,
+      color: 'text-green-600',
+      bg: 'bg-green-50',
+      border: 'border-green-200',
+    },
+    {
+      icon: <Share2 className="h-4 w-4 text-purple-600" />,
+      label: 'Share thật',
+      count: voteScore.realShares,
+      multiplier: 'x5',
+      votes: voteScore.shareVotes,
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
+      border: 'border-purple-200',
+    },
+  ];
+
+  return (
+    <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Award className="h-5 w-5 text-amber-600" />
+          <h4 className="text-base font-bold text-gray-900">Điểm Vote thực tế</h4>
+        </div>
+        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+          Sau khi trừ tài khoản ảo
+        </span>
+      </div>
+
+      {/* Big vote number */}
+      <div className="mb-5 flex items-end gap-4">
+        <div>
+          <p className="text-4xl font-bold text-amber-600">
+            {voteScore.totalVotes.toLocaleString('vi-VN')}
+          </p>
+          <p className="text-xs text-gray-500">tổng vote thực tế</p>
+        </div>
+        <div className="ml-auto text-right">
+          <p className="text-lg font-bold text-gray-400 line-through">
+            {(
+              (voteScore.realReactions + voteScore.fakeReactions) * 1 +
+              (voteScore.realComments + voteScore.fakeComments) * 1.5 +
+              (voteScore.realShares + voteScore.fakeShares) * 5
+            ).toLocaleString('vi-VN', { maximumFractionDigits: 0 })}
+          </p>
+          <p className="text-xs text-gray-400">điểm trước khi lọc</p>
+        </div>
+      </div>
+
+      {/* Per-type vote breakdown */}
+      <div className="mb-4 space-y-2">
+        {voteRows.map((row, i) => (
+          <div key={i} className={`flex items-center gap-3 rounded-lg border ${row.border} ${row.bg} px-4 py-3`}>
+            {row.icon}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">{row.label}</p>
+              <p className="text-xs text-gray-500">
+                {row.count.toLocaleString('vi-VN')} lượt thật · hệ số {row.multiplier}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className={`text-lg font-bold ${row.color}`}>{row.votes.toLocaleString('vi-VN')}</p>
+              <p className="text-xs text-gray-400">vote</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Deducted summary */}
+      <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
+        <span className="text-xs font-semibold text-red-700">
+          Đã trừ {voteScore.deductedAccounts.toLocaleString('vi-VN')} tương tác ảo
+        </span>
+        <span className="text-xs text-red-400">
+          (react {voteScore.fakeReactions.toLocaleString('vi-VN')} · cmt {voteScore.fakeComments.toLocaleString('vi-VN')} · share {voteScore.fakeShares.toLocaleString('vi-VN')})
+        </span>
+      </div>
+
+      {/* Formula */}
+      <div className="rounded-lg bg-gray-50 px-3 py-2">
+        <p className="text-xs text-gray-500 leading-relaxed">
+          <span className="font-semibold">Công thức: </span>{voteScore.formula}
+        </p>
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import type {
   FlagReason,
   ThreatCategory,
   FakeEstimate,
+  VoteScore,
 } from './types';
 
 function classifyRisk(score: number): RiskLevel {
@@ -853,6 +854,118 @@ function estimateFakeAccounts(
   };
 }
 
+// Vietnamese + English praising words for detecting positive comments
+const praisingWords = [
+  'hay', 'dep', 'tot', 'good', 'great', 'nice', 'love', 'like',
+  'tuyet', 'tuyet voi', 'xuat sac', 'tam on', 'cam on', 'thanks',
+  'thank you', 'cuon', 'thich', 'hay lam', 'dep qua', 'tot qua',
+  'qua hay', 'qua dep', 'san pham tot', 'chat luong', 'uy tin',
+  'hop ly', 'tan thanh', 'hoan ho', 'clap', 'crest', 'cong nhan',
+  'dac biet', 'ky dieu', 'hoan hao', 'chuan', 'doc dao', 'sang tao',
+];
+
+function isPraisingComment(content: string): boolean {
+  const trimmed = content.trim().toLowerCase();
+  if (trimmed.length < 2) return false;
+  for (const word of praisingWords) {
+    if (trimmed.includes(word)) return true;
+  }
+  return false;
+}
+
+function calculateVoteScore(
+  input: ScanInput,
+  fakeEstimate: FakeEstimate,
+  interactionResult: { flagged: FlaggedAccount[] }
+): VoteScore {
+  const realReactions = fakeEstimate.realReactions;
+  const realShares = fakeEstimate.realShares;
+
+  // For comments: deduct fake comments, then deduplicate by account name (1 comment per account)
+  // Among real, unique comments, praising ones get 2 votes; others get 1 vote (base comment)
+  // But the user specified: 1 cmt khen = 2 vote, each account only counted 1 comment
+  // Non-praising real comments also count as 1 vote base (implicit from "1 cmt khen = 2 vote" — others = 1)
+
+  // Collect real comment accounts (non-flagged commenters)
+  const flaggedAccountNames = new Set(
+    interactionResult.flagged
+      .filter((f) => f.threatCategory !== 'clean' && f.interactionType === 'comment')
+      .map((f) => f.profileName.trim().toLowerCase())
+      .filter((n) => n.length > 0)
+  );
+
+  // Deduplicate real comment accounts
+  const realCommentAccounts = new Map<string, string>(); // nameKey -> original content
+  for (const it of input.interactions) {
+    if (it.interactionType !== 'comment') continue;
+    const nameKey = it.profileName.trim().toLowerCase();
+    if (!nameKey || flaggedAccountNames.has(nameKey)) continue;
+    if (!realCommentAccounts.has(nameKey)) {
+      realCommentAccounts.set(nameKey, it.content ?? '');
+    }
+  }
+
+  // If we have interaction samples, use them; otherwise estimate from totals
+  let realComments: number;
+  let praisingCount: number;
+  let normalCount: number;
+
+  if (realCommentAccounts.size > 0) {
+    // We have real sample data — count praising vs normal
+    let praising = 0;
+    let normal = 0;
+    for (const [, content] of realCommentAccounts) {
+      if (isPraisingComment(content)) {
+        praising++;
+      } else {
+        normal++;
+      }
+    }
+    // Scale up: if we sampled N real comments but total real comments is higher,
+    // apply the same praising ratio to the remaining
+    const sampledReal = praising + normal;
+    const totalRealComments = fakeEstimate.realComments;
+    if (sampledReal > 0 && totalRealComments > sampledReal) {
+      const scale = totalRealComments / sampledReal;
+      praising = Math.round(praising * scale);
+      normal = totalRealComments - praising;
+    }
+    praisingCount = praising;
+    normalCount = normal;
+    realComments = praisingCount + normalCount;
+  } else {
+    // No interaction samples — estimate praising ratio as 60% of real comments
+    realComments = fakeEstimate.realComments;
+    praisingCount = Math.round(realComments * 0.6);
+    normalCount = realComments - praisingCount;
+  }
+
+  const reactVotes = realReactions * 1;       // 1 react = 1 vote
+  const commentVotes = praisingCount * 2 + normalCount * 1; // 1 cmt khen = 2, else 1
+  const shareVotes = realShares * 5;          // 1 share = 5 votes
+  const totalVotes = reactVotes + commentVotes + shareVotes;
+
+  const fakeComments = fakeEstimate.fakeComments;
+  const deductedAccounts = fakeEstimate.fakeReactions + fakeComments + fakeEstimate.fakeShares;
+
+  const formula = `1 react = 1 vote · 1 cmt khen = 2 vote · 1 share = 5 vote. Đã trừ ${deductedAccounts.toLocaleString('vi-VN')} tương tác ảo (react ${fakeEstimate.fakeReactions.toLocaleString('vi-VN')} + cmt ${fakeComments.toLocaleString('vi-VN')} + share ${fakeEstimate.fakeShares.toLocaleString('vi-VN')}). Cmt khen: ${praisingCount.toLocaleString('vi-VN')}/${realComments.toLocaleString('vi-VN')} cmt thật.`;
+
+  return {
+    totalVotes,
+    reactVotes,
+    commentVotes,
+    shareVotes,
+    realReactions,
+    realComments,
+    realShares,
+    fakeReactions: fakeEstimate.fakeReactions,
+    fakeComments,
+    fakeShares: fakeEstimate.fakeShares,
+    deductedAccounts,
+    formula,
+  };
+}
+
 export function analyzePost(input: ScanInput): ScanResult {
   const allSignals: DetectedSignal[] = [];
 
@@ -886,6 +999,7 @@ export function analyzePost(input: ScanInput): ScanResult {
   const flaggedOnly = allAccounts.filter((a) => a.threatCategory !== 'clean');
 
   const fakeEstimate = estimateFakeAccounts(input, allSignals, interactionResult);
+  const voteScore = calculateVoteScore(input, fakeEstimate, interactionResult);
 
   return {
     riskScore: score,
@@ -897,5 +1011,6 @@ export function analyzePost(input: ScanInput): ScanResult {
     flaggedAccounts: flaggedOnly,
     allAccounts,
     fakeEstimate,
+    voteScore,
   };
 }

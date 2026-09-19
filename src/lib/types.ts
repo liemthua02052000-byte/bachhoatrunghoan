@@ -68,6 +68,21 @@ export interface ScanInput {
   interactions: InteractionEntry[];
 }
 
+export interface VoteScore {
+  totalVotes: number;
+  reactVotes: number;
+  commentVotes: number;
+  shareVotes: number;
+  realReactions: number;
+  realComments: number;
+  realShares: number;
+  fakeReactions: number;
+  fakeComments: number;
+  fakeShares: number;
+  deductedAccounts: number;
+  formula: string;
+}
+
 export interface ScanResult {
   riskScore: number;
   riskLevel: RiskLevel;
@@ -78,6 +93,7 @@ export interface ScanResult {
   flaggedAccounts: FlaggedAccount[];
   allAccounts: FlaggedAccount[];
   fakeEstimate: FakeEstimate;
+  voteScore: VoteScore;
 }
 
 export interface FakeEstimate {
