@@ -23,9 +23,6 @@ import {
   CheckCircle2,
   Sparkles,
   Award,
-  ThumbsUp,
-  MessageSquare,
-  Share2,
 } from 'lucide-react';
 
 interface Props {
