@@ -4,7 +4,7 @@ import { ShieldCheck, Loader2, Mail, Lock, UserPlus, LogIn } from 'lucide-react'
 
 export function UserAuth() {
   const { signUp, signIn } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('signup');
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -133,17 +133,8 @@ export function UserAuth() {
           </form>
 
           <p className="mt-4 text-center text-xs text-gray-400">
-            Đăng ký miễn phí — không cần chờ duyệt. Lịch sử kiểm tra được lưu theo tài khoản.
+            Tài khoản đầu tiên tự động trở thành quản trị viên. Hệ thống tự phân luồng sau đăng nhập.
           </p>
-        </div>
-
-        <div className="mt-4 text-center">
-          <a
-            href="#admin"
-            className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
-          >
-            Đăng nhập quản trị viên →
-          </a>
         </div>
       </div>
     </div>
