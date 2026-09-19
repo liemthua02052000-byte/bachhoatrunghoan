@@ -878,62 +878,88 @@ function calculateVoteScore(
   fakeEstimate: FakeEstimate,
   interactionResult: { flagged: FlaggedAccount[] }
 ): VoteScore {
-  const realReactions = fakeEstimate.realReactions;
-  const realShares = fakeEstimate.realShares;
+  // Vote score is computed ONLY from actual scanned interaction entries.
+  // No estimation from totals — each vote comes from a real, verified interaction.
 
-  // Collect flagged comment account names to exclude
-  const flaggedAccountNames = new Set(
-    interactionResult.flagged
-      .filter((f) => f.threatCategory !== 'clean' && f.interactionType === 'comment')
-      .map((f) => f.profileName.trim().toLowerCase())
-      .filter((n) => n.length > 0)
-  );
+  // Build a set of flagged account names per interaction type
+  const flaggedByType = new Map<string, Set<string>>();
+  for (const f of interactionResult.flagged) {
+    if (f.threatCategory === 'clean') continue;
+    const key = f.interactionType;
+    const nameKey = f.profileName.trim().toLowerCase();
+    if (!nameKey) continue;
+    if (!flaggedByType.has(key)) flaggedByType.set(key, new Set());
+    flaggedByType.get(key)!.add(nameKey);
+  }
 
-  // Deduplicate real comment accounts: each account only counted 1 comment
-  // Only praising comments count as 2 vote; non-praising comments = 0 vote
+  // Count real (non-flagged) reactions from scanned entries
+  let realReactions = 0;
+  const realReactNames = new Set<string>();
+  for (const it of input.interactions) {
+    if (it.interactionType !== 'react') continue;
+    const nameKey = it.profileName.trim().toLowerCase();
+    if (!nameKey) continue;
+    const flagged = flaggedByType.get('react');
+    if (flagged && flagged.has(nameKey)) continue;
+    realReactNames.add(nameKey);
+  }
+  realReactions = realReactNames.size;
+
+  // Count real (non-flagged) shares from scanned entries
+  let realShares = 0;
+  const realShareNames = new Set<string>();
+  for (const it of input.interactions) {
+    if (it.interactionType !== 'share') continue;
+    const nameKey = it.profileName.trim().toLowerCase();
+    if (!nameKey) continue;
+    const flagged = flaggedByType.get('share');
+    if (flagged && flagged.has(nameKey)) continue;
+    realShareNames.add(nameKey);
+  }
+  realShares = realShareNames.size;
+
+  // Count real, unique, praising comments from scanned entries
+  // Each account only counted 1 comment; only praising comments = 2 vote
   const realCommentAccounts = new Map<string, string>(); // nameKey -> content
   for (const it of input.interactions) {
     if (it.interactionType !== 'comment') continue;
     const nameKey = it.profileName.trim().toLowerCase();
-    if (!nameKey || flaggedAccountNames.has(nameKey)) continue;
+    if (!nameKey) continue;
+    const flagged = flaggedByType.get('comment');
+    if (flagged && flagged.has(nameKey)) continue;
     if (!realCommentAccounts.has(nameKey)) {
       realCommentAccounts.set(nameKey, it.content ?? '');
     }
   }
 
-  let praisingComments: number;
-  let totalRealComments: number;
-
-  if (realCommentAccounts.size > 0) {
-    // Count praising among unique real commenters
-    let praising = 0;
-    for (const [, content] of realCommentAccounts) {
-      if (isPraisingComment(content)) praising++;
-    }
-    // Scale up if sampled < total real comments
-    const sampled = realCommentAccounts.size;
-    const totalReal = fakeEstimate.realComments;
-    if (sampled > 0 && totalReal > sampled) {
-      const scale = totalReal / sampled;
-      praising = Math.round(praising * scale);
-    }
-    praisingComments = praising;
-    totalRealComments = totalReal;
-  } else {
-    // No samples — estimate 60% of real comments are praising
-    totalRealComments = fakeEstimate.realComments;
-    praisingComments = Math.round(totalRealComments * 0.6);
+  let praisingComments = 0;
+  for (const [, content] of realCommentAccounts) {
+    if (isPraisingComment(content)) praisingComments++;
   }
+
+  // Count flagged interactions actually deducted
+  const fakeReactions = input.interactions.filter(
+    (it) => it.interactionType === 'react' && flaggedByType.get('react')?.has(it.profileName.trim().toLowerCase())
+  ).length;
+  const fakeComments = input.interactions.filter(
+    (it) => it.interactionType === 'comment' && flaggedByType.get('comment')?.has(it.profileName.trim().toLowerCase())
+  ).length;
+  const fakeShares = input.interactions.filter(
+    (it) => it.interactionType === 'share' && flaggedByType.get('share')?.has(it.profileName.trim().toLowerCase())
+  ).length;
+  const deductedAccounts = fakeReactions + fakeComments + fakeShares;
 
   const reactVotes = realReactions * 1;            // 1 react = 1 vote
   const commentVotes = praisingComments * 2;       // 1 cmt khen = 2 vote (mỗi account 1 lượt)
   const shareVotes = realShares * 5;               // 1 share = 5 votes
   const totalVotes = reactVotes + commentVotes + shareVotes;
 
-  const fakeComments = fakeEstimate.fakeComments;
-  const deductedAccounts = fakeEstimate.fakeReactions + fakeComments + fakeEstimate.fakeShares;
+  const totalRealComments = realCommentAccounts.size;
+  const hasScannedData = input.interactions.some((it) => it.profileName.trim().length > 0);
 
-  const formula = `1 react = 1 vote · 1 cmt khen = 2 vote (mỗi account 1 lượt) · 1 share = 5 vote. Đã trừ ${deductedAccounts.toLocaleString('vi-VN')} tương tác ảo. Cmt khen: ${praisingComments.toLocaleString('vi-VN')}/${totalRealComments.toLocaleString('vi-VN')} cmt thật.`;
+  const formula = hasScannedData
+    ? `Quét ${input.interactions.length} tương tác thật: ${realReactions} react thật · ${praisingComments}/${totalRealComments} cmt khen thật · ${realShares} share thật. Đã trừ ${deductedAccounts} tài khoản ảo. Công thức: 1 react = 1 vote · 1 cmt khen = 2 vote · 1 share = 5 vote.`
+    : `Chưa có dữ liệu tương tác được quét. Hãy dán danh sách comment/react/share từ Facebook vào để hệ thống quét và tính điểm vote thực tế.`;
 
   return {
     totalVotes,
@@ -943,9 +969,9 @@ function calculateVoteScore(
     realReactions,
     realComments: totalRealComments,
     realShares,
-    fakeReactions: fakeEstimate.fakeReactions,
+    fakeReactions,
     fakeComments,
-    fakeShares: fakeEstimate.fakeShares,
+    fakeShares,
     deductedAccounts,
     formula,
   };
