@@ -13,7 +13,6 @@ import {
   Trash2,
   Loader2,
   ScanLine,
-  ClipboardPaste,
   Sparkles,
   HelpCircle,
 } from 'lucide-react';
@@ -76,65 +75,53 @@ export function ScanForm({ onSaved }: Props) {
     setInteractions(interactions.filter((_, i) => i !== idx));
   }
 
-  function handleParsePaste() {
-    const parsed = parseFacebookComments(pasteArea);
-    if (parsed.length === 0) {
-      setPasteInfo('Không tìm thấy tên tài khoản nào trong nội dung dán. Hãy thử copy lại danh sách comment từ Facebook.');
-      return;
-    }
-    const newInteractions = parsedToInteractions(parsed);
-    // Merge: keep existing named interactions, append new ones (deduplicate by name)
-    const existingNames = new Set(
-      interactions.filter((it) => it.profileName.trim()).map((it) => it.profileName.trim().toLowerCase())
-    );
-    const toAdd = newInteractions.filter((it) => !existingNames.has(it.profileName.trim().toLowerCase()));
-    const allInteractions = [
-      ...interactions.filter((it) => it.profileName.trim().length > 0),
-      ...toAdd,
-    ];
-    if (allInteractions.length === 0) {
-      allInteractions.push({
-        interactionType: 'comment',
-        profileName: '',
-        isEmptyProfile: false,
-        isNewAccount: false,
-        hasProfilePhoto: true,
-        content: '',
-      });
-    }
-    setInteractions(allInteractions);
-    setPasteInfo(`Đã trích xuất ${toAdd.length} tài khoản từ nội dung dán. Tổng cộng ${allInteractions.length} tài khoản.`);
-    setPasteArea('');
-  }
-
   async function handleAnalyze() {
     setError('');
     setResult(null);
     setInteractError('');
+    setPasteInfo('');
 
     if (!postUrl.trim()) {
       setError('Vui lòng nhập link bài viết Facebook cần kiểm tra.');
       return;
     }
 
-    // If there's pending paste content, extract it first so we use the latest data
-    let workingInteractions = interactions;
+    // Extract interactions from paste area (if any) — all in one click
+    let workingInteractions = interactions.filter((it) => it.profileName.trim().length > 0);
     if (pasteArea.trim()) {
       const parsed = parseFacebookComments(pasteArea);
       if (parsed.length > 0) {
         const newInteractions = parsedToInteractions(parsed);
         const existingNames = new Set(
-          interactions.filter((it) => it.profileName.trim()).map((it) => it.profileName.trim().toLowerCase())
+          workingInteractions.map((it) => it.profileName.trim().toLowerCase())
         );
-        const toAdd = newInteractions.filter((it) => !existingNames.has(it.profileName.trim().toLowerCase()));
-        workingInteractions = [
-          ...interactions.filter((it) => it.profileName.trim().length > 0),
-          ...toAdd,
-        ];
-        setInteractions(workingInteractions);
-        setPasteInfo(`Đã trích xuất ${toAdd.length} tài khoản từ nội dung dán. Tổng cộng ${workingInteractions.length} tài khoản.`);
-        setPasteArea('');
+        const toAdd = newInteractions.filter(
+          (it) => !existingNames.has(it.profileName.trim().toLowerCase())
+        );
+        workingInteractions = [...workingInteractions, ...toAdd];
+        setInteractions(
+          workingInteractions.length > 0
+            ? workingInteractions
+            : [
+                {
+                  interactionType: 'comment',
+                  profileName: '',
+                  isEmptyProfile: false,
+                  isNewAccount: false,
+                  hasProfilePhoto: true,
+                  content: '',
+                },
+              ]
+        );
+        setPasteInfo(
+          `Đã trích xuất ${toAdd.length} tài khoản. Tổng cộng ${workingInteractions.length} tài khoản.`
+        );
+      } else {
+        setPasteInfo(
+          'Không tìm thấy tên tài khoản nào trong nội dung dán. Hãy thử copy lại danh sách comment từ Facebook.'
+        );
       }
+      setPasteArea('');
     }
 
     const hasNamedInteraction = workingInteractions.some(
@@ -152,10 +139,6 @@ export function ScanForm({ onSaved }: Props) {
 
     setAnalyzing(true);
 
-    const validInteractions = workingInteractions.filter(
-      (it) => it.profileName.trim().length > 0
-    );
-
     const input: ScanInput = {
       postUrl: postUrl.trim(),
       postContent: postContent.trim() || undefined,
@@ -171,7 +154,7 @@ export function ScanForm({ onSaved }: Props) {
         sad: parseInt(sad) || 0,
         angry: parseInt(angry) || 0,
       },
-      interactions: validInteractions,
+      interactions: workingInteractions,
     };
 
     const analysisResult = analyzePost(input);
@@ -292,22 +275,13 @@ export function ScanForm({ onSaved }: Props) {
           onChange={(e) => setPasteArea(e.target.value)}
           rows={6}
           placeholder={
-            'Dán danh sách comment từ Facebook vào đây...\n\nVí dụ:\nNguyễn Văn A\nBài viết hay quá\n· Reply · Share · Like · 1h\n\nTrần Thị B\nLike like share\n· Reply · Share · Like · 2h'
+            'Dán danh sách comment từ Facebook vào đây rồi nhấn "Phân tích bài viết"...\n\nVí dụ:\nNguyễn Văn A\nBài viết hay quá\n· Reply · Share · Like · 1h\n\nTrần Thị B\nLike like share\n· Reply · Share · Like · 2h'
           }
           className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
         />
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            onClick={handleParsePaste}
-            disabled={!pasteArea.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ClipboardPaste className="h-4 w-4" /> Tự động trích xuất tài khoản
-          </button>
-          {pasteInfo && (
-            <span className="text-xs text-blue-600 font-medium">{pasteInfo}</span>
-          )}
-        </div>
+        {pasteInfo && (
+          <p className="mt-3 text-xs text-blue-600 font-medium">{pasteInfo}</p>
+        )}
       </div>
 
       {/* Interaction samples */}
