@@ -733,12 +733,10 @@ function estimateFakeAccounts(
   if (signalTypes.has('burst_engagement')) {
     reactFakeRate = Math.min(reactFakeRate + 0.15, 0.95);
     commentFakeRate += 0.15;
-    shareFakeRate += 0.15;
     methodParts.push('tương tác bùng nổ trong <1 giờ');
   } else if (signalTypes.has('rapid_engagement')) {
     reactFakeRate = Math.min(reactFakeRate + 0.08, 0.90);
     commentFakeRate += 0.08;
-    shareFakeRate += 0.08;
     methodParts.push('tương tác tăng nhanh bất thường');
   }
 
@@ -779,6 +777,8 @@ function estimateFakeAccounts(
   }
   if (signalTypes.has('burst_engagement')) {
     shareFakeRate = Math.min(shareFakeRate + 0.10, 0.90);
+  } else if (signalTypes.has('rapid_engagement')) {
+    shareFakeRate = Math.min(shareFakeRate + 0.05, 0.90);
   }
 
   // Danger signals bump all
@@ -788,17 +788,48 @@ function estimateFakeAccounts(
     shareFakeRate = Math.min(shareFakeRate + 0.08, 0.95);
   }
 
-  // If we have interaction samples, use actual flagged rate to refine
+  // If we have interaction samples, refine per-type using actual flagged rate for that type
   if (input.interactions.length > 0 && interactionResult.flagged.length > 0) {
     const flagged = interactionResult.flagged;
+    // Build index → threatCategory map for O(1) lookup
+    const threatByIndex = new Map<number, ThreatCategory>();
+    for (const f of flagged) {
+      threatByIndex.set(f.index, f.threatCategory);
+    }
+    // Compute sample fake rate per interaction type
+    const byType = (type: string) => {
+      let total = 0;
+      let fake = 0;
+      input.interactions.forEach((it, idx) => {
+        if (it.interactionType !== type) return;
+        total++;
+        const threat = threatByIndex.get(idx);
+        if (threat && threat !== 'clean') fake++;
+      });
+      return { total, fake };
+    };
+    // React sample
+    const reactSample = byType('react');
+    if (reactSample.total > 0) {
+      const rate = reactSample.fake / reactSample.total;
+      reactFakeRate = reactFakeRate * 0.4 + rate * 0.6;
+    }
+    // Comment sample
+    const commentSample = byType('comment');
+    if (commentSample.total > 0) {
+      const rate = commentSample.fake / commentSample.total;
+      commentFakeRate = commentFakeRate * 0.4 + rate * 0.6;
+    }
+    // Share sample
+    const shareSample = byType('share');
+    if (shareSample.total > 0) {
+      const rate = shareSample.fake / shareSample.total;
+      shareFakeRate = shareFakeRate * 0.4 + rate * 0.6;
+    }
     const sampleTotal = input.interactions.length;
     const sampleFake = flagged.filter((f) => f.threatCategory !== 'clean').length;
     const sampleRate = sampleTotal > 0 ? sampleFake / sampleTotal : 0;
-    // Blend: weight sample rate 60%, metric-based rate 40%
-    reactFakeRate = reactFakeRate * 0.4 + sampleRate * 0.6;
-    commentFakeRate = commentFakeRate * 0.4 + sampleRate * 0.6;
-    shareFakeRate = shareFakeRate * 0.4 + sampleRate * 0.6;
-    methodParts.unshift(`Dựa trên ${sampleTotal} mẫu tài khoản (${(sampleRate * 100).toFixed(0)}% là ảo) + số liệu tương tác`);
+    methodParts.unshift(`Dựa trên ${sampleTotal} mẫu tương tác (${(sampleRate * 100).toFixed(0)}% là ảo) + số liệu tổng`);
   }
 
   // Clamp
@@ -1003,18 +1034,16 @@ export function analyzePost(input: ScanInput): ScanResult {
     else score += 3;
   }
 
-  const flaggedCount = interactionResult.flagged.length;
+  const allAccounts = interactionResult.flagged;
+  const flaggedOnly = allAccounts.filter((a) => a.threatCategory !== 'clean');
   if (input.interactions.length > 0) {
-    const flaggedPct = (flaggedCount / input.interactions.length) * 100;
+    const flaggedPct = (flaggedOnly.length / input.interactions.length) * 100;
     score += Math.min(flaggedPct * 0.4, 30);
   }
 
   if (engagementResult.ratio > 100) score += 10;
 
   score = Math.min(Math.round(score), 100);
-
-  const allAccounts = interactionResult.flagged;
-  const flaggedOnly = allAccounts.filter((a) => a.threatCategory !== 'clean');
 
   const fakeEstimate = estimateFakeAccounts(input, allSignals, interactionResult);
   const voteScore = calculateVoteScore(input, fakeEstimate, interactionResult);
