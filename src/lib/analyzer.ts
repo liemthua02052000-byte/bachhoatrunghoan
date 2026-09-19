@@ -762,11 +762,18 @@ function estimateFakeAccounts(
   }
 
   // --- SHARE fake rate ---
-  if (signalTypes.has('high_share_ratio')) {
-    shareFakeRate = 0.50;
-    methodParts.push('tỷ lệ share cao bất thường — ~50% share là ảo');
-  } else if (signalTypes.has('zero_shares')) {
+  const shareRatio = totalReactions > 0 ? totalShares / totalReactions : 0;
+  if (signalTypes.has('zero_shares') || totalShares === 0) {
     shareFakeRate = 0.05;
+  } else if (shareRatio > 1.0 && totalShares > 200) {
+    shareFakeRate = 0.60;
+    methodParts.push('tỷ lệ share/react >100% — share nhiều hơn react, bất thường — ~60% share là ảo');
+  } else if (shareRatio > 0.8 && totalShares > 100) {
+    shareFakeRate = 0.45;
+    methodParts.push('tỷ lệ share/react cao (>80%) — ~45% share là ảo');
+  } else if (shareRatio > 0.5 && totalShares > 100) {
+    shareFakeRate = 0.30;
+    methodParts.push('tỷ lệ share/react hơi cao (>50%) — ~30% share là ảo');
   } else {
     shareFakeRate = Math.max(reactFakeRate - 0.05, 0.05);
   }
