@@ -468,7 +468,7 @@ function VoteScoreCard({ voteScore }: { voteScore: VoteScore }) {
     },
     {
       icon: <MessageSquare className="h-4 w-4 text-green-600" />,
-      label: 'Comment thật (mỗi account 1 lượt)',
+      label: 'Cmt khen (mỗi account 1 lượt)',
       count: voteScore.realComments,
       multiplier: 'x2',
       votes: voteScore.commentVotes,

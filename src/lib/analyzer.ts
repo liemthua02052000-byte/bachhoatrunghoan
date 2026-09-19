@@ -854,6 +854,25 @@ function estimateFakeAccounts(
   };
 }
 
+// Vietnamese + English praising words for detecting positive comments
+const praisingWords = [
+  'hay', 'dep', 'tot', 'good', 'great', 'nice', 'love', 'like',
+  'tuyet', 'tuyet voi', 'xuat sac', 'tam on', 'cam on', 'thanks',
+  'thank you', 'cuon', 'thich', 'hay lam', 'dep qua', 'tot qua',
+  'qua hay', 'qua dep', 'san pham tot', 'chat luong', 'uy tin',
+  'hop ly', 'tan thanh', 'hoan ho', 'clap', 'crest', 'cong nhan',
+  'dac biet', 'ky dieu', 'hoan hao', 'chuan', 'doc dao', 'sang tao',
+];
+
+function isPraisingComment(content: string): boolean {
+  const trimmed = content.trim().toLowerCase();
+  if (trimmed.length < 2) return false;
+  for (const word of praisingWords) {
+    if (trimmed.includes(word)) return true;
+  }
+  return false;
+}
+
 function calculateVoteScore(
   input: ScanInput,
   fakeEstimate: FakeEstimate,
@@ -861,9 +880,8 @@ function calculateVoteScore(
 ): VoteScore {
   const realReactions = fakeEstimate.realReactions;
   const realShares = fakeEstimate.realShares;
-  const realComments = fakeEstimate.realComments;
 
-  // Deduplicate real comment accounts: each account only counted 1 comment
+  // Collect flagged comment account names to exclude
   const flaggedAccountNames = new Set(
     interactionResult.flagged
       .filter((f) => f.threatCategory !== 'clean' && f.interactionType === 'comment')
@@ -871,28 +889,51 @@ function calculateVoteScore(
       .filter((n) => n.length > 0)
   );
 
-  const realCommentAccountNames = new Set<string>();
+  // Deduplicate real comment accounts: each account only counted 1 comment
+  // Only praising comments count as 2 vote; non-praising comments = 0 vote
+  const realCommentAccounts = new Map<string, string>(); // nameKey -> content
   for (const it of input.interactions) {
     if (it.interactionType !== 'comment') continue;
     const nameKey = it.profileName.trim().toLowerCase();
     if (!nameKey || flaggedAccountNames.has(nameKey)) continue;
-    realCommentAccountNames.add(nameKey);
+    if (!realCommentAccounts.has(nameKey)) {
+      realCommentAccounts.set(nameKey, it.content ?? '');
+    }
   }
 
-  // If we have sample data, use the unique real commenter count; otherwise use estimated total
-  const uniqueRealComments = realCommentAccountNames.size > 0
-    ? realCommentAccountNames.size
-    : realComments;
+  let praisingComments: number;
+  let totalRealComments: number;
 
-  const reactVotes = realReactions * 1;         // 1 react = 1 vote
-  const commentVotes = uniqueRealComments * 2;  // 1 cmt = 2 vote (mỗi account 1 lượt)
-  const shareVotes = realShares * 5;            // 1 share = 5 votes
+  if (realCommentAccounts.size > 0) {
+    // Count praising among unique real commenters
+    let praising = 0;
+    for (const [, content] of realCommentAccounts) {
+      if (isPraisingComment(content)) praising++;
+    }
+    // Scale up if sampled < total real comments
+    const sampled = realCommentAccounts.size;
+    const totalReal = fakeEstimate.realComments;
+    if (sampled > 0 && totalReal > sampled) {
+      const scale = totalReal / sampled;
+      praising = Math.round(praising * scale);
+    }
+    praisingComments = praising;
+    totalRealComments = totalReal;
+  } else {
+    // No samples — estimate 60% of real comments are praising
+    totalRealComments = fakeEstimate.realComments;
+    praisingComments = Math.round(totalRealComments * 0.6);
+  }
+
+  const reactVotes = realReactions * 1;            // 1 react = 1 vote
+  const commentVotes = praisingComments * 2;       // 1 cmt khen = 2 vote (mỗi account 1 lượt)
+  const shareVotes = realShares * 5;               // 1 share = 5 votes
   const totalVotes = reactVotes + commentVotes + shareVotes;
 
   const fakeComments = fakeEstimate.fakeComments;
   const deductedAccounts = fakeEstimate.fakeReactions + fakeComments + fakeEstimate.fakeShares;
 
-  const formula = `1 react = 1 vote · 1 cmt = 2 vote (mỗi account 1 lượt) · 1 share = 5 vote. Đã trừ ${deductedAccounts.toLocaleString('vi-VN')} tương tác ảo (react ${fakeEstimate.fakeReactions.toLocaleString('vi-VN')} + cmt ${fakeComments.toLocaleString('vi-VN')} + share ${fakeEstimate.fakeShares.toLocaleString('vi-VN')}). Cmt thật: ${uniqueRealComments.toLocaleString('vi-VN')} lượt (đã trùng).`;
+  const formula = `1 react = 1 vote · 1 cmt khen = 2 vote (mỗi account 1 lượt) · 1 share = 5 vote. Đã trừ ${deductedAccounts.toLocaleString('vi-VN')} tương tác ảo. Cmt khen: ${praisingComments.toLocaleString('vi-VN')}/${totalRealComments.toLocaleString('vi-VN')} cmt thật.`;
 
   return {
     totalVotes,
@@ -900,7 +941,7 @@ function calculateVoteScore(
     commentVotes,
     shareVotes,
     realReactions,
-    realComments: uniqueRealComments,
+    realComments: totalRealComments,
     realShares,
     fakeReactions: fakeEstimate.fakeReactions,
     fakeComments,
