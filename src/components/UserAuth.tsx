@@ -133,7 +133,7 @@ export function UserAuth() {
           </form>
 
           <p className="mt-4 text-center text-xs text-gray-400">
-            Tài khoản đầu tiên tự động trở thành quản trị viên. Hệ thống tự phân luồng sau đăng nhập.
+            Đăng nhập miễn phí, không cần chờ phê duyệt.
           </p>
         </div>
       </div>
