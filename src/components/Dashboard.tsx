@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ScanReport, ScanResult as ScanResultType, ScanInput } from '@/lib/types';
-import { ScanForm } from './ScanForm';
+import { ScanForm, type ScanFormInitialData } from './ScanForm';
 import { ScanHistory } from './ScanHistory';
 import { ScanResult } from './ScanResult';
 import { RiskBadge } from './RiskBadge';
@@ -14,6 +14,7 @@ import {
   X,
   Loader2,
   LogOut,
+  RotateCcw,
 } from 'lucide-react';
 
 type Tab = 'scan' | 'history' | 'guide';
@@ -26,6 +27,7 @@ export function Dashboard() {
   const [detailResult, setDetailResult] = useState<ScanResultType | null>(null);
   const [detailInput, setDetailInput] = useState<{ totalReactions: number; totalComments: number; totalShares: number; reactionBreakdown: Record<string, number>; postContent?: string; postDate?: string } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [scanInitialData, setScanInitialData] = useState<ScanFormInitialData | undefined>(undefined);
 
   function handleSaved() {
     setRefreshKey((k) => k + 1);
@@ -50,6 +52,30 @@ export function Dashboard() {
       });
     }
     setDetailLoading(false);
+  }
+
+  async function handleReanalyze() {
+    if (!selectedReport) return;
+    const loaded = await getScanWithInteractions(selectedReport.id);
+    const rb = selectedReport.reaction_breakdown ?? {};
+    const initial: ScanFormInitialData = {
+      postUrl: selectedReport.post_url,
+      postContent: selectedReport.post_content ?? '',
+      postDate: selectedReport.post_date ?? '',
+      totalReactions: String(selectedReport.total_reactions || ''),
+      totalComments: String(selectedReport.total_comments || ''),
+      totalShares: String(selectedReport.total_shares || ''),
+      like: String((rb as Record<string, number>).like || ''),
+      love: String((rb as Record<string, number>).love || ''),
+      haha: String((rb as Record<string, number>).haha || ''),
+      wow: String((rb as Record<string, number>).wow || ''),
+      sad: String((rb as Record<string, number>).sad || ''),
+      angry: String((rb as Record<string, number>).angry || ''),
+      interactions: loaded?.input.interactions ?? [],
+    };
+    setScanInitialData(initial);
+    setSelectedReport(null);
+    setTab('scan');
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -98,7 +124,7 @@ export function Dashboard() {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => { setTab(t.id); setScanInitialData(undefined); }}
               className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
                 tab === t.id
                   ? 'bg-blue-600 text-white shadow-sm'
@@ -151,7 +177,7 @@ export function Dashboard() {
                 </div>
               </div>
             </div>
-            <ScanForm onSaved={handleSaved} />
+            <ScanForm onSaved={handleSaved} initialData={scanInitialData} />
           </div>
         )}
 
@@ -174,14 +200,22 @@ export function Dashboard() {
               className="my-4 w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl sm:my-8 sm:p-6 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between gap-2">
                 <h3 className="text-lg font-bold text-gray-900">Chi tiết báo cáo</h3>
-                <button
-                  onClick={() => setSelectedReport(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={handleReanalyze}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Phân tích lại
+                  </button>
+                  <button
+                    onClick={() => setSelectedReport(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               <div className="mb-4">
                 <RiskBadge score={selectedReport.risk_score} level={selectedReport.risk_level} size="lg" />

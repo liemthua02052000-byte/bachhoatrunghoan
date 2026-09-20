@@ -14,36 +14,57 @@ import {
   Loader2,
   ScanLine,
   Sparkles,
-  HelpCircle,
+  RotateCcw,
 } from 'lucide-react';
+
+export interface ScanFormInitialData {
+  postUrl: string;
+  postContent: string;
+  postDate: string;
+  totalReactions: string;
+  totalComments: string;
+  totalShares: string;
+  like: string;
+  love: string;
+  haha: string;
+  wow: string;
+  sad: string;
+  angry: string;
+  interactions: InteractionEntry[];
+}
 
 interface Props {
   onSaved: () => void;
+  initialData?: ScanFormInitialData;
 }
 
-export function ScanForm({ onSaved }: Props) {
-  const [postUrl, setPostUrl] = useState('');
-  const [postContent, setPostContent] = useState('');
-  const [postDate, setPostDate] = useState('');
-  const [totalReactions, setTotalReactions] = useState('');
-  const [totalComments, setTotalComments] = useState('');
-  const [totalShares, setTotalShares] = useState('');
-  const [like, setLike] = useState('');
-  const [love, setLove] = useState('');
-  const [haha, setHaha] = useState('');
-  const [wow, setWow] = useState('');
-  const [sad, setSad] = useState('');
-  const [angry, setAngry] = useState('');
-  const [interactions, setInteractions] = useState<InteractionEntry[]>([
-    {
-      interactionType: 'comment',
-      profileName: '',
-      isEmptyProfile: false,
-      isNewAccount: false,
-      hasProfilePhoto: true,
-      content: '',
-    },
-  ]);
+const BLANK_INTERACTION: InteractionEntry = {
+  interactionType: 'comment',
+  profileName: '',
+  isEmptyProfile: false,
+  isNewAccount: false,
+  hasProfilePhoto: true,
+  content: '',
+};
+
+export function ScanForm({ onSaved, initialData }: Props) {
+  const [postUrl, setPostUrl] = useState(initialData?.postUrl ?? '');
+  const [postContent, setPostContent] = useState(initialData?.postContent ?? '');
+  const [postDate, setPostDate] = useState(initialData?.postDate ?? '');
+  const [totalReactions, setTotalReactions] = useState(initialData?.totalReactions ?? '');
+  const [totalComments, setTotalComments] = useState(initialData?.totalComments ?? '');
+  const [totalShares, setTotalShares] = useState(initialData?.totalShares ?? '');
+  const [like, setLike] = useState(initialData?.like ?? '');
+  const [love, setLove] = useState(initialData?.love ?? '');
+  const [haha, setHaha] = useState(initialData?.haha ?? '');
+  const [wow, setWow] = useState(initialData?.wow ?? '');
+  const [sad, setSad] = useState(initialData?.sad ?? '');
+  const [angry, setAngry] = useState(initialData?.angry ?? '');
+  const [interactions, setInteractions] = useState<InteractionEntry[]>(
+    initialData?.interactions && initialData.interactions.length > 0
+      ? initialData.interactions
+      : [BLANK_INTERACTION]
+  );
   const [interactError, setInteractError] = useState('');
   const [pasteArea, setPasteArea] = useState('');
   const [pasteInfo, setPasteInfo] = useState('');
@@ -52,17 +73,7 @@ export function ScanForm({ onSaved }: Props) {
   const [error, setError] = useState('');
 
   function addInteraction() {
-    setInteractions([
-      ...interactions,
-      {
-        interactionType: 'comment',
-        profileName: '',
-        isEmptyProfile: false,
-        isNewAccount: false,
-        hasProfilePhoto: true,
-        content: '',
-      },
-    ]);
+    setInteractions([...interactions, { ...BLANK_INTERACTION }]);
   }
 
   function updateInteraction(idx: number, field: keyof InteractionEntry, value: string | boolean) {
@@ -171,6 +182,15 @@ export function ScanForm({ onSaved }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Reanalyze banner */}
+      {initialData && (
+        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <RotateCcw className="h-4 w-4 flex-shrink-0 text-blue-600" />
+          <p className="text-sm font-medium text-blue-800">
+            Dữ liệu đã được điền sẵn từ lịch sử kiểm tra. Chỉnh sửa nếu cần rồi bấm “Phân tích bài viết” để kiểm tra lại.
+          </p>
+        </div>
+      )}
       {/* Post info */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6">
         <h3 className="mb-4 text-base font-semibold text-gray-900">Thông tin bài viết</h3>
