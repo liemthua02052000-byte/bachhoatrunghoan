@@ -262,7 +262,7 @@ export function Dashboard() {
                     totalReactions: selectedReport.total_reactions,
                     totalComments: selectedReport.total_comments,
                     totalShares: selectedReport.total_shares,
-                    reactionBreakdown: selectedReport.reaction_breakdown ?? {},
+                    reactionBreakdown: (selectedReport.reaction_breakdown ?? {}) as Record<string, number>,
                     postContent: selectedReport.post_content ?? undefined,
                     postDate: selectedReport.post_date ?? undefined,
                   }}
